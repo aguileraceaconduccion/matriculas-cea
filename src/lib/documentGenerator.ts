@@ -2,6 +2,17 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 
+const getFullDocTypeName = (code: string) => {
+  const map: Record<string, string> = {
+    'CC': 'Cédula de Ciudadanía',
+    'TI': 'Tarjeta de Identidad',
+    'CE': 'Cédula de Extranjería',
+    'PPT': 'Permiso por Protección Temporal',
+    'PAS': 'Pasaporte'
+  };
+  return map[code] || code;
+};
+
 export interface HabeasDataInput {
   studentName: string;
   documentType: string;
@@ -33,36 +44,36 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
     // Draw Student Signature & Info (Left side)
     lastPage.drawImage(signatureImage, {
-      x: 50,
-      y: 290,
+      x: 80,
+      y: 310,
       width: signatureDims.width,
       height: signatureDims.height,
     });
 
     lastPage.drawText(input.studentName, {
-      x: 100,
-      y: 265,
+      x: 80,
+      y: 280,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
-    lastPage.drawText(input.documentType, {
-      x: 160,
-      y: 235,
+    lastPage.drawText(getFullDocTypeName(input.documentType), {
+      x: 80,
+      y: 250,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(input.documentNumber, {
-      x: 190,
-      y: 205,
+      x: 80,
+      y: 220,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(`Bogotá, ${dateStr}`, {
-      x: 140,
-      y: 175,
+      x: 80,
+      y: 190,
       size: 10,
       color: rgb(0, 0, 0),
     });
@@ -74,36 +85,36 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
       const tutorSigDims = tutorSignatureImage.scale(0.3);
 
       lastPage.drawImage(tutorSignatureImage, {
-        x: 320,
-        y: 290,
+        x: 350,
+        y: 310,
         width: tutorSigDims.width,
         height: tutorSigDims.height,
       });
 
       lastPage.drawText(input.tutorName, {
-        x: 430,
-        y: 265,
+        x: 350,
+        y: 280,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
-      lastPage.drawText('CC', {
-        x: 460,
-        y: 235,
+      lastPage.drawText(getFullDocTypeName('CC'), {
+        x: 350,
+        y: 250,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(input.tutorDocument || '', {
-        x: 480,
-        y: 205,
+        x: 350,
+        y: 220,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(`Bogotá, ${dateStr}`, {
-        x: 400,
-        y: 175,
+        x: 350,
+        y: 190,
         size: 10,
         color: rgb(0, 0, 0),
       });
@@ -136,6 +147,7 @@ export const generateFichaMatriculaDocx = async (studentData: any): Promise<File
     // Mapear campos para coincidir con la plantilla DOCX
     const renderData = {
       ...studentData,
+      tipo_documento: getFullDocTypeName(studentData.tipo_documento || ''),
       nombres_completos: `${studentData.nombres || ''} ${studentData.apellidos || ''}`.trim(),
       fecha_hoy: today.toLocaleDateString('es-CO'),
       ano: today.getFullYear().toString(),
