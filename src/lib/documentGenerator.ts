@@ -26,7 +26,8 @@ export interface HabeasDataInput {
 
 export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<File> => {
   try {
-    const url = '/HABEAS DATA ACTUALIZADO OBLIGATORIO.pdf';
+    const baseUrl = import.meta.env.BASE_URL;
+    const url = `${baseUrl}HABEAS DATA ACTUALIZADO OBLIGATORIO.pdf`;
     const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer());
 
     const pdfDoc = await PDFDocument.load(existingPdfBytes);
@@ -132,7 +133,8 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
 export const generateFichaMatriculaDocx = async (studentData: any): Promise<File> => {
   try {
-    const url = '/Ficha Matricula.docx';
+    const baseUrl = import.meta.env.BASE_URL;
+    const url = `${baseUrl}Ficha Matricula.docx`;
     const content = await fetch(url).then(res => res.arrayBuffer());
 
     const zip = new PizZip(content);
@@ -171,6 +173,51 @@ export const generateFichaMatriculaDocx = async (studentData: any): Promise<File
     });
   } catch (error) {
     console.error('Error generating Ficha Matricula DOCX:', error);
+    throw error;
+  }
+};
+
+export const convertImagesToPdf = async (frontDataUrl: string, backDataUrl: string, studentName: string): Promise<File> => {
+  try {
+    const pdfDoc = await PDFDocument.create();
+    
+    // Add first page (Front)
+    const page1 = pdfDoc.addPage([595.28, 841.89]); // A4 size
+    const frontImageBytes = await fetch(frontDataUrl).then(res => res.arrayBuffer());
+    // Detect image type
+    const frontImage = frontDataUrl.startsWith('data:image/png') 
+      ? await pdfDoc.embedPng(frontImageBytes) 
+      : await pdfDoc.embedJpg(frontImageBytes);
+      
+    // Scale image to fit A4 page with some margin
+    const frontDims = frontImage.scaleToFit(500, 750);
+    page1.drawImage(frontImage, {
+      x: page1.getWidth() / 2 - frontDims.width / 2,
+      y: page1.getHeight() / 2 - frontDims.height / 2,
+      width: frontDims.width,
+      height: frontDims.height,
+    });
+
+    // Add second page (Back)
+    const page2 = pdfDoc.addPage([595.28, 841.89]);
+    const backImageBytes = await fetch(backDataUrl).then(res => res.arrayBuffer());
+    const backImage = backDataUrl.startsWith('data:image/png') 
+      ? await pdfDoc.embedPng(backImageBytes) 
+      : await pdfDoc.embedJpg(backImageBytes);
+      
+    const backDims = backImage.scaleToFit(500, 750);
+    page2.drawImage(backImage, {
+      x: page2.getWidth() / 2 - backDims.width / 2,
+      y: page2.getHeight() / 2 - backDims.height / 2,
+      width: backDims.width,
+      height: backDims.height,
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    const cleanStudentName = studentName.trim().replace(/[^a-zA-Z0-9]/g, '_');
+    return new File([pdfBytes as any], `Cedula_${cleanStudentName}.pdf`, { type: 'application/pdf' });
+  } catch (error) {
+    console.error('Error converting images to PDF:', error);
     throw error;
   }
 };

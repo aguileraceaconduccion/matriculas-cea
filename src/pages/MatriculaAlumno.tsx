@@ -10,6 +10,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { 
   Car, FileText, Camera, Upload, Check, AlertTriangle, 
   ChevronRight, ChevronLeft, Loader2, Sparkles
+  ChevronRight, ChevronLeft, Loader2, Sparkles, X, Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -70,8 +71,11 @@ const MatriculaAlumno = () => {
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
 
-  // Paso 3: Cédula PDF
+  // Paso 3: Cédula
   const [cedulaFile, setCedulaFile] = useState<File | null>(null);
+  const [isCameraMode, setIsCameraMode] = useState(false);
+  const [frontImage, setFrontImage] = useState<string | null>(null);
+  const [backImage, setBackImage] = useState<string | null>(null);
 
   // Paso 4: Habeas Data
   const [habeasAccepted, setHabeasAccepted] = useState(false);
@@ -89,15 +93,12 @@ const MatriculaAlumno = () => {
       try {
         const sol = await getSolicitudByToken(token);
         if (sol) {
-          // Si ya está en un estado avanzado, no permitir volver a diligenciar
           if (!['Solicitud enviada', 'Alumno diligenciando'].includes(sol.estado)) {
             setIsDone(true);
             setSolicitud(sol);
           } else {
             setSolicitud(sol);
-            // Actualizar a estado "Alumno diligenciando" en segundo plano
             await updateSolicitudEstado(sol.id, 'Alumno diligenciando');
-            // Cargar datos iniciales del alumno según la solicitud
             setFormData(prev => ({
               ...prev,
               nombres: sol.nombre_alumno.split(' ')[0] || '',
@@ -697,52 +698,148 @@ const MatriculaAlumno = () => {
             <CardHeader>
               <CardTitle className="text-lg flex items-center justify-center gap-2">
                 <FileText className="w-5 h-5 text-primary" /> Documento de Identidad (PDF)
-              </CardTitle>
+              <CardTitle className="text-lg">Documento de Identidad</CardTitle>
               <CardDescription className="text-xs">
-                Cargue su documento de identidad en formato PDF (máx 10 MB).
+                Cargue su documento en formato PDF o tome fotos para generarlo.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 py-6">
               
-              <div className="w-48 h-48 mx-auto bg-muted rounded-2xl flex flex-col items-center justify-center border-4 border-dashed border-muted-foreground/20 text-muted-foreground p-4">
-                {cedulaFile ? (
-                  <>
-                    <FileText className="w-12 h-12 text-primary mb-2" />
-                    <span className="text-[10px] font-bold text-foreground truncate max-w-full">{cedulaFile.name}</span>
-                    <span className="text-[9px] text-muted-foreground mt-1">{(cedulaFile.size / (1024 * 1024)).toFixed(2)} MB</span>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-10 h-10 mb-2 opacity-50" />
-                    <span className="text-[10px]">Arrastra o selecciona el archivo PDF</span>
-                  </>
-                )}
+              <div className="flex gap-2 justify-center mb-4">
+                <Button 
+                  variant={uploadMode === 'pdf' ? 'default' : 'outline'} 
+                  size="sm" 
+                  onClick={() => setUploadMode('pdf')}
+                  className="w-1/2 text-[11px]"
+                >
+                  Subir PDF
+                </Button>
+                <Button 
+                  variant={uploadMode === 'photo' ? 'default' : 'outline'} 
+                  size="sm" 
+                  onClick={() => setUploadMode('photo')}
+                  className="w-1/2 text-[11px]"
+                >
+                  Tomar Fotos
+                </Button>
               </div>
 
-              <div className="max-w-xs mx-auto">
-                <label className="flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors">
-                  <Upload className="w-4 h-4" /> Seleccionar Archivo PDF
-                  <input 
-                    type="file" 
-                    accept="application/pdf" 
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (file.type !== 'application/pdf') {
-                          toast({ variant: 'destructive', title: 'Formato incorrecto', description: 'Únicamente se aceptan archivos PDF.' });
-                          return;
+              {uploadMode === 'photo' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] text-center block">Frente del Documento</Label>
+                      <label className="flex flex-col items-center justify-center gap-2 h-24 w-full bg-muted/50 border-2 border-dashed border-primary/30 rounded-xl cursor-pointer hover:bg-muted text-xs transition-colors overflow-hidden relative">
+                        {frontPhoto ? (
+                          <img src={frontPhoto} className="absolute inset-0 w-full h-full object-cover" />
+                        ) : (
+                          <>
+                            <Camera className="w-6 h-6 text-primary/70" />
+                            <span className="text-[10px] text-muted-foreground">Capturar</span>
+                          </>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          capture="environment"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setFrontPhoto(await compressImage(file));
+                          }} 
+                          className="hidden" 
+                        />
+                      </label>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] text-center block">Reverso del Documento</Label>
+                      <label className="flex flex-col items-center justify-center gap-2 h-24 w-full bg-muted/50 border-2 border-dashed border-primary/30 rounded-xl cursor-pointer hover:bg-muted text-xs transition-colors overflow-hidden relative">
+                        {backPhoto ? (
+                          <img src={backPhoto} className="absolute inset-0 w-full h-full object-cover" />
+                        ) : (
+                          <>
+                            <Camera className="w-6 h-6 text-primary/70" />
+                            <span className="text-[10px] text-muted-foreground">Capturar</span>
+                          </>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          capture="environment"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setBackPhoto(await compressImage(file));
+                          }} 
+                          className="hidden" 
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <Button 
+                    className="w-full text-xs" 
+                    disabled={!frontPhoto || !backPhoto || isGeneratingPdf}
+                    onClick={async () => {
+                      if (frontPhoto && backPhoto) {
+                        setIsGeneratingPdf(true);
+                        try {
+                          const pdfFile = await convertImagesToPdf(frontPhoto, backPhoto, `${formData.nombres} ${formData.apellidos}`);
+                          setCedulaFile(pdfFile);
+                          setUploadMode('pdf');
+                          toast({ title: 'PDF Generado', description: 'Se ha creado el documento correctamente.' });
+                        } catch (error) {
+                          toast({ variant: 'destructive', title: 'Error', description: 'No se pudo generar el PDF.' });
+                        } finally {
+                          setIsGeneratingPdf(false);
                         }
-                        if (file.size > 10 * 1024 * 1024) {
-                          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo excede el tamaño máximo de 10 MB.' });
-                          return;
-                        }
-                        setCedulaFile(file);
                       }
-                    }} 
-                    className="hidden" 
-                  />
-                </label>
-              </div>
+                    }}
+                  >
+                    {isGeneratingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                    Convertir a PDF
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="w-48 h-48 mx-auto bg-muted rounded-2xl flex flex-col items-center justify-center border-4 border-dashed border-muted-foreground/20 text-muted-foreground p-4">
+                    {cedulaFile ? (
+                      <>
+                        <FileText className="w-12 h-12 text-primary mb-2" />
+                        <span className="text-[10px] font-bold text-foreground truncate max-w-full">{cedulaFile.name}</span>
+                        <span className="text-[9px] text-muted-foreground mt-1">{(cedulaFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-10 h-10 mb-2 opacity-50" />
+                        <span className="text-[10px]">Arrastra o selecciona el archivo PDF</span>
+                      </>
+                    )}
+                  </div>
+  
+                  <div className="max-w-xs mx-auto">
+                    <label className="flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors">
+                      <Upload className="w-4 h-4" /> Seleccionar Archivo PDF
+                      <input 
+                        type="file" 
+                        accept="application/pdf" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.type !== 'application/pdf') {
+                              toast({ variant: 'destructive', title: 'Formato incorrecto', description: 'Únicamente se aceptan archivos PDF.' });
+                              return;
+                            }
+                            if (file.size > 10 * 1024 * 1024) {
+                              toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo excede el tamaño máximo de 10 MB.' });
+                              return;
+                            }
+                            setCedulaFile(file);
+                          }
+                        }} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
 
               {cedulaFile && (
                 <p className="text-[10px] text-green-600 font-semibold">✓ Documento listo para subir</p>
