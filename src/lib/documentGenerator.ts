@@ -37,7 +37,7 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     // Embed student signature
     const signatureImageBytes = await fetch(input.signatureDataUrl).then(res => res.arrayBuffer());
     const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
-    const signatureDims = signatureImage.scale(0.3);
+    const signatureDims = signatureImage.scale(0.2);
 
     // Get current date
     const today = new Date();
@@ -46,35 +46,35 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     // Draw Student Signature & Info (Left side)
     lastPage.drawImage(signatureImage, {
       x: 80,
-      y: 310,
+      y: 330,
       width: signatureDims.width,
       height: signatureDims.height,
     });
 
     lastPage.drawText(input.studentName, {
       x: 80,
-      y: 280,
+      y: 310,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(getFullDocTypeName(input.documentType), {
       x: 80,
-      y: 250,
+      y: 280,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(input.documentNumber, {
       x: 80,
-      y: 220,
+      y: 250,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(`Bogotá, ${dateStr}`, {
       x: 80,
-      y: 190,
+      y: 220,
       size: 10,
       color: rgb(0, 0, 0),
     });
@@ -83,39 +83,39 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     if (input.isMinor && input.tutorSignatureDataUrl && input.tutorName) {
       const tutorSignatureBytes = await fetch(input.tutorSignatureDataUrl).then(res => res.arrayBuffer());
       const tutorSignatureImage = await pdfDoc.embedPng(tutorSignatureBytes);
-      const tutorSigDims = tutorSignatureImage.scale(0.3);
+      const tutorSigDims = tutorSignatureImage.scale(0.2);
 
       lastPage.drawImage(tutorSignatureImage, {
         x: 350,
-        y: 310,
+        y: 330,
         width: tutorSigDims.width,
         height: tutorSigDims.height,
       });
 
       lastPage.drawText(input.tutorName, {
         x: 350,
-        y: 280,
+        y: 310,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(getFullDocTypeName('CC'), {
         x: 350,
-        y: 250,
+        y: 280,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(input.tutorDocument || '', {
         x: 350,
-        y: 220,
+        y: 250,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(`Bogotá, ${dateStr}`, {
         x: 350,
-        y: 190,
+        y: 220,
         size: 10,
         color: rgb(0, 0, 0),
       });
@@ -181,34 +181,35 @@ export const convertImagesToPdf = async (frontDataUrl: string, backDataUrl: stri
   try {
     const pdfDoc = await PDFDocument.create();
     
-    // Add first page (Front)
-    const page1 = pdfDoc.addPage([595.28, 841.89]); // A4 size
+    // Una sola hoja A4
+    const page = pdfDoc.addPage([595.28, 841.89]); 
+    const pageW = page.getWidth();
+    const pageH = page.getHeight();
+
+    // Imagen frontal (Mitad superior)
     const frontImageBytes = await fetch(frontDataUrl).then(res => res.arrayBuffer());
-    // Detect image type
     const frontImage = frontDataUrl.startsWith('data:image/png') 
       ? await pdfDoc.embedPng(frontImageBytes) 
       : await pdfDoc.embedJpg(frontImageBytes);
       
-    // Scale image to fit A4 page with some margin
-    const frontDims = frontImage.scaleToFit(500, 750);
-    page1.drawImage(frontImage, {
-      x: page1.getWidth() / 2 - frontDims.width / 2,
-      y: page1.getHeight() / 2 - frontDims.height / 2,
+    const frontDims = frontImage.scaleToFit(500, 350);
+    page.drawImage(frontImage, {
+      x: pageW / 2 - frontDims.width / 2,
+      y: (pageH * 0.75) - (frontDims.height / 2),
       width: frontDims.width,
       height: frontDims.height,
     });
 
-    // Add second page (Back)
-    const page2 = pdfDoc.addPage([595.28, 841.89]);
+    // Imagen reverso (Mitad inferior)
     const backImageBytes = await fetch(backDataUrl).then(res => res.arrayBuffer());
     const backImage = backDataUrl.startsWith('data:image/png') 
       ? await pdfDoc.embedPng(backImageBytes) 
       : await pdfDoc.embedJpg(backImageBytes);
       
-    const backDims = backImage.scaleToFit(500, 750);
-    page2.drawImage(backImage, {
-      x: page2.getWidth() / 2 - backDims.width / 2,
-      y: page2.getHeight() / 2 - backDims.height / 2,
+    const backDims = backImage.scaleToFit(500, 350);
+    page.drawImage(backImage, {
+      x: pageW / 2 - backDims.width / 2,
+      y: (pageH * 0.25) - (backDims.height / 2),
       width: backDims.width,
       height: backDims.height,
     });

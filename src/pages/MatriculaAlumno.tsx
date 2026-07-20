@@ -19,6 +19,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import ReactCrop, { type Crop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
 import { convertImagesToPdf } from '@/lib/documentGenerator';
 
@@ -115,6 +117,20 @@ const MatriculaAlumno = () => {
   const [frontPhoto, setFrontPhoto] = useState<string | null>(null);
   const [backPhoto, setBackPhoto] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // Crop State
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [currentCropImage, setCurrentCropImage] = useState<string | null>(null);
+  const [currentCropSide, setCurrentCropSide] = useState<'front' | 'back' | null>(null);
+  const [crop, setCrop] = useState<Crop>({
+    unit: '%',
+    width: 90,
+    height: 60,
+    x: 5,
+    y: 20
+  });
+  const [completedCrop, setCompletedCrop] = useState<any>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   // Paso 4: Habeas Data
   const [habeasAccepted, setHabeasAccepted] = useState(false);
@@ -381,6 +397,50 @@ const MatriculaAlumno = () => {
       </div>
     );
   }
+  const handlePhotoSelectForCrop = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const compressed = await compressImage(file);
+      setCurrentCropImage(compressed);
+      setCurrentCropSide(side);
+      setCropModalOpen(true);
+    }
+    e.target.value = '';
+  };
+
+  const handleCropCompleteAction = () => {
+    if (!completedCrop || !imageRef.current || !currentCropImage) return;
+
+    const canvas = document.createElement('canvas');
+    const image = imageRef.current;
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    
+    canvas.width = completedCrop.width;
+    canvas.height = completedCrop.height;
+    const ctx = canvas.getContext('2d');
+    
+    if (ctx) {
+      ctx.drawImage(
+        image,
+        completedCrop.x * scaleX,
+        completedCrop.y * scaleY,
+        completedCrop.width * scaleX,
+        completedCrop.height * scaleY,
+        0,
+        0,
+        completedCrop.width,
+        completedCrop.height
+      );
+      const croppedUrl = canvas.toDataURL('image/jpeg', 0.8);
+      if (currentCropSide === 'front') {
+        setFrontPhoto(croppedUrl);
+      } else {
+        setBackPhoto(croppedUrl);
+      }
+      setCropModalOpen(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-muted/20 pb-12">
@@ -781,10 +841,7 @@ const MatriculaAlumno = () => {
                           type="file" 
                           accept="image/*"
                           capture="environment"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) setFrontPhoto(await compressImage(file));
-                          }} 
+                          onChange={(e) => handlePhotoSelectForCrop(e, 'front')} 
                           className="hidden" 
                         />
                       </label>
@@ -804,10 +861,7 @@ const MatriculaAlumno = () => {
                           type="file" 
                           accept="image/*"
                           capture="environment"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) setBackPhoto(await compressImage(file));
-                          }} 
+                          onChange={(e) => handlePhotoSelectForCrop(e, 'back')} 
                           className="hidden" 
                         />
                       </label>
@@ -1047,6 +1101,31 @@ const MatriculaAlumno = () => {
         )}
 
       </main>
+
+      {cropModalOpen && currentCropImage && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-4">
+          <div className="text-white text-lg font-bold mb-4">Recorte su documento</div>
+          <p className="text-white/70 text-sm mb-4 text-center">Ajuste el recuadro para que solo se vea la cédula, sin el fondo.</p>
+          <div className="max-h-[60vh] max-w-full overflow-auto">
+            <ReactCrop 
+              crop={crop} 
+              onChange={c => setCrop(c)} 
+              onComplete={c => setCompletedCrop(c)}
+            >
+              <img 
+                src={currentCropImage} 
+                ref={imageRef} 
+                alt="Crop" 
+                className="max-w-full max-h-[50vh] object-contain" 
+              />
+            </ReactCrop>
+          </div>
+          <div className="flex gap-4 mt-6">
+            <Button variant="outline" className="bg-white text-black hover:bg-gray-200" onClick={() => setCropModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCropCompleteAction}>Recortar y Guardar</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
