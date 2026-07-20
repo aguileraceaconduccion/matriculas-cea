@@ -9,7 +9,6 @@ import {
 import SignatureCanvas from 'react-signature-canvas';
 import { 
   Car, FileText, Camera, Upload, Check, AlertTriangle, 
-  ChevronRight, ChevronLeft, Loader2, Sparkles
   ChevronRight, ChevronLeft, Loader2, Sparkles, X, Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
