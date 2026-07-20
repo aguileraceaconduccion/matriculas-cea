@@ -46,35 +46,35 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     // Draw Student Signature & Info (Left side)
     lastPage.drawImage(signatureImage, {
       x: 80,
-      y: 295,
+      y: 310,
       width: signatureDims.width,
       height: signatureDims.height,
     });
 
     lastPage.drawText(input.studentName, {
       x: 80,
-      y: 260,
+      y: 280,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(getFullDocTypeName(input.documentType), {
       x: 80,
-      y: 213,
+      y: 250,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(input.documentNumber, {
       x: 80,
-      y: 173,
+      y: 220,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(`Bogotá, ${dateStr}`, {
       x: 80,
-      y: 133,
+      y: 190,
       size: 10,
       color: rgb(0, 0, 0),
     });
@@ -87,35 +87,35 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
       lastPage.drawImage(tutorSignatureImage, {
         x: 320,
-        y: 295,
+        y: 310,
         width: tutorSigDims.width,
         height: tutorSigDims.height,
       });
 
       lastPage.drawText(input.tutorName, {
         x: 320,
-        y: 260,
+        y: 280,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(getFullDocTypeName('CC'), {
         x: 320,
-        y: 213,
+        y: 250,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(input.tutorDocument || '', {
         x: 320,
-        y: 173,
+        y: 220,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(`Bogotá, ${dateStr}`, {
         x: 320,
-        y: 133,
+        y: 190,
         size: 10,
         color: rgb(0, 0, 0),
       });
