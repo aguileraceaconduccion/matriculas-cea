@@ -60,21 +60,21 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
     lastPage.drawText(getFullDocTypeName(input.documentType), {
       x: 80,
-      y: 215,
+      y: 213,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(input.documentNumber, {
       x: 80,
-      y: 175,
+      y: 173,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(`Bogotá, ${dateStr}`, {
       x: 80,
-      y: 135,
+      y: 133,
       size: 10,
       color: rgb(0, 0, 0),
     });
@@ -101,21 +101,21 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
       lastPage.drawText(getFullDocTypeName('CC'), {
         x: 320,
-        y: 215,
+        y: 213,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(input.tutorDocument || '', {
         x: 320,
-        y: 175,
+        y: 173,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(`Bogotá, ${dateStr}`, {
         x: 320,
-        y: 135,
+        y: 133,
         size: 10,
         color: rgb(0, 0, 0),
       });
