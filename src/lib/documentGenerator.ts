@@ -46,21 +46,21 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     // Draw Student Signature & Info (Left side)
     lastPage.drawImage(signatureImage, {
       x: 80,
-      y: 305,
+      y: 300,
       width: signatureDims.width,
       height: signatureDims.height,
     });
 
     lastPage.drawText(input.studentName, {
-      x: 80,
-      y: 290,
+      x: 95,
+      y: 278,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(getFullDocTypeName(input.documentType), {
-      x: 80,
-      y: 260,
+      x: 95,
+      y: 243,
       size: 10,
       color: rgb(0, 0, 0),
     });
@@ -87,21 +87,21 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
       lastPage.drawImage(tutorSignatureImage, {
         x: 320,
-        y: 305,
+        y: 300,
         width: tutorSigDims.width,
         height: tutorSigDims.height,
       });
 
       lastPage.drawText(input.tutorName, {
-        x: 320,
-        y: 290,
+        x: 335,
+        y: 278,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(getFullDocTypeName('CC'), {
-        x: 320,
-        y: 260,
+        x: 335,
+        y: 243,
         size: 10,
         color: rgb(0, 0, 0),
       });
