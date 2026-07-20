@@ -250,7 +250,8 @@ const Index = () => {
 
     try {
       const solicitud = await createSolicitud(newNombre, newCorreo, newCelular, newCategoria);
-      const link = `${window.location.origin}/matricula/${solicitud.codigo_unico}`;
+      const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
+      const link = `${baseUrl}#/matricula/${solicitud.codigo_unico}`;
       setGeneratedLink(link);
       setJustCreated(solicitud);
       
