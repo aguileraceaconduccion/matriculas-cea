@@ -1,16 +1,16 @@
 {
-  "name": "Aguilera CEA - Centro de Enseñanza Automovilística",
-  "short_name": "Aguilera CEA",
+  "name": "Enrolamiento",
+  "short_name": "Enrolamiento",
   "description": "Centro de Enseñanza Automovilística certificado. Inscríbete y agenda tus clases.",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0d9488",
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "64x64",
-      "type": "image/x-icon"
+      "src": "/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
     }
   ]
 }
