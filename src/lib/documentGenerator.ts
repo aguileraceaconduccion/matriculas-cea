@@ -45,36 +45,36 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
     // Draw Student Signature & Info (Left side)
     lastPage.drawImage(signatureImage, {
-      x: 80,
-      y: 300,
+      x: 88,
+      y: 326,
       width: signatureDims.width,
       height: signatureDims.height,
     });
 
     lastPage.drawText(input.studentName, {
-      x: 80,
-      y: 270,
+      x: 88,
+      y: 296,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(getFullDocTypeName(input.documentType), {
-      x: 80,
-      y: 240,
+      x: 88,
+      y: 266,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(input.documentNumber, {
-      x: 80,
-      y: 210,
+      x: 82,
+      y: 241,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(`Bogotá, ${dateStr}`, {
-      x: 80,
-      y: 180,
+      x: 82,
+      y: 211,
       size: 10,
       color: rgb(0, 0, 0),
     });
@@ -86,36 +86,36 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
       const tutorSigDims = tutorSignatureImage.scale(0.2);
 
       lastPage.drawImage(tutorSignatureImage, {
-        x: 320,
-        y: 300,
+        x: 333,
+        y: 326,
         width: tutorSigDims.width,
         height: tutorSigDims.height,
       });
 
       lastPage.drawText(input.tutorName, {
-        x: 320,
-        y: 270,
+        x: 333,
+        y: 296,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(getFullDocTypeName('CC'), {
-        x: 320,
-        y: 240,
+        x: 333,
+        y: 266,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(input.tutorDocument || '', {
-        x: 320,
-        y: 210,
+        x: 327,
+        y: 241,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(`Bogotá, ${dateStr}`, {
-        x: 320,
-        y: 180,
+        x: 327,
+        y: 211,
         size: 10,
         color: rgb(0, 0, 0),
       });
