@@ -20,6 +20,45 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
+import { convertImagesToPdf } from '@/lib/documentGenerator';
+
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 const MatriculaAlumno = () => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
@@ -72,9 +111,10 @@ const MatriculaAlumno = () => {
 
   // Paso 3: Cédula
   const [cedulaFile, setCedulaFile] = useState<File | null>(null);
-  const [isCameraMode, setIsCameraMode] = useState(false);
-  const [frontImage, setFrontImage] = useState<string | null>(null);
-  const [backImage, setBackImage] = useState<string | null>(null);
+  const [uploadMode, setUploadMode] = useState<'pdf' | 'photo'>('pdf');
+  const [frontPhoto, setFrontPhoto] = useState<string | null>(null);
+  const [backPhoto, setBackPhoto] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Paso 4: Habeas Data
   const [habeasAccepted, setHabeasAccepted] = useState(false);
@@ -696,8 +736,8 @@ const MatriculaAlumno = () => {
           <Card className="shadow-md border-muted-foreground/10 rounded-2xl text-center">
             <CardHeader>
               <CardTitle className="text-lg flex items-center justify-center gap-2">
-                <FileText className="w-5 h-5 text-primary" /> Documento de Identidad (PDF)
-              <CardTitle className="text-lg">Documento de Identidad</CardTitle>
+                <FileText className="w-5 h-5 text-primary" /> Documento de Identidad
+              </CardTitle>
               <CardDescription className="text-xs">
                 Cargue su documento en formato PDF o tome fotos para generarlo.
               </CardDescription>
