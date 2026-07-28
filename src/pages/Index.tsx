@@ -611,7 +611,6 @@ const Index = () => {
                   <Label htmlFor="newNombres">Nombres del Alumno</Label>
                   <Input 
                     id="newNombres" 
-                    placeholder="Andrea Carolina" 
                     value={newNombres} 
                     onChange={(e) => setNewNombres(e.target.value)} 
                     required
@@ -621,7 +620,6 @@ const Index = () => {
                   <Label htmlFor="newApellidos">Apellidos del Alumno</Label>
                   <Input 
                     id="newApellidos" 
-                    placeholder="Zapata Hincapié" 
                     value={newApellidos} 
                     onChange={(e) => setNewApellidos(e.target.value)} 
                     required
@@ -634,7 +632,6 @@ const Index = () => {
                   <Input 
                     id="newCelular" 
                     type="tel"
-                    placeholder="3001234567" 
                     value={newCelular} 
                     onChange={(e) => setNewCelular(e.target.value)} 
                     required
@@ -663,7 +660,6 @@ const Index = () => {
                 <Input 
                   id="newCorreo" 
                   type="email"
-                  placeholder="alumno@correo.com" 
                   value={newCorreo} 
                   onChange={(e) => setNewCorreo(e.target.value)} 
                   required
