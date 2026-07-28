@@ -38,7 +38,8 @@ const Index = () => {
 
   // Modales e interactivos
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newNombre, setNewNombre] = useState('');
+  const [newNombres, setNewNombres] = useState('');
+  const [newApellidos, setNewApellidos] = useState('');
   const [newCelular, setNewCelular] = useState('');
   const [newCorreo, setNewCorreo] = useState('');
   const [newCategoria, setNewCategoria] = useState('B1');
@@ -239,7 +240,7 @@ const Index = () => {
 
   const handleCreateSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNombre || !newCelular || !newCorreo) {
+    if (!newNombres || !newApellidos || !newCelular || !newCorreo) {
       toast({
         variant: 'destructive',
         title: 'Campos incompletos',
@@ -249,7 +250,8 @@ const Index = () => {
     }
 
     try {
-      const solicitud = await createSolicitud(newNombre, newCorreo, newCelular, newCategoria);
+      const fullName = `${newNombres.trim()}  ${newApellidos.trim()}`;
+      const solicitud = await createSolicitud(fullName, newCorreo, newCelular, newCategoria);
       const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
       const link = `${baseUrl}#/matricula/${solicitud.codigo_unico}`;
       setGeneratedLink(link);
@@ -261,7 +263,8 @@ const Index = () => {
       });
       
       // Limpiar y recargar
-      setNewNombre('');
+      setNewNombres('');
+      setNewApellidos('');
       setNewCelular('');
       setNewCorreo('');
       loadData();
@@ -603,15 +606,27 @@ const Index = () => {
 
           {!generatedLink ? (
             <form onSubmit={handleCreateSolicitud} className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="newNombre">Nombre Completo del Alumno</Label>
-                <Input 
-                  id="newNombre" 
-                  placeholder="Juan Pérez" 
-                  value={newNombre} 
-                  onChange={(e) => setNewNombre(e.target.value)} 
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="newNombres">Nombres del Alumno</Label>
+                  <Input 
+                    id="newNombres" 
+                    placeholder="Andrea Carolina" 
+                    value={newNombres} 
+                    onChange={(e) => setNewNombres(e.target.value)} 
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="newApellidos">Apellidos del Alumno</Label>
+                  <Input 
+                    id="newApellidos" 
+                    placeholder="Zapata Hincapié" 
+                    value={newApellidos} 
+                    onChange={(e) => setNewApellidos(e.target.value)} 
+                    required
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">

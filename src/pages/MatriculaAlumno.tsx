@@ -154,10 +154,22 @@ const MatriculaAlumno = () => {
           } else {
             setSolicitud(sol);
             await updateSolicitudEstado(sol.id, 'Alumno diligenciando');
+            
+            let nombres = '';
+            let apellidos = '';
+            if (sol.nombre_alumno.includes('  ')) {
+              const parts = sol.nombre_alumno.split('  ');
+              nombres = parts[0] || '';
+              apellidos = parts[1] || '';
+            } else {
+              nombres = sol.nombre_alumno.split(' ')[0] || '';
+              apellidos = sol.nombre_alumno.split(' ').slice(1).join(' ') || '';
+            }
+
             setFormData(prev => ({
               ...prev,
-              nombres: sol.nombre_alumno.split(' ')[0] || '',
-              apellidos: sol.nombre_alumno.split(' ').slice(1).join(' ') || '',
+              nombres: nombres,
+              apellidos: apellidos,
               email_1: sol.email,
               celular: sol.celular,
               categoria: sol.categoria
