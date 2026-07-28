@@ -37,7 +37,7 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     // Embed student signature
     const signatureImageBytes = await fetch(input.signatureDataUrl).then(res => res.arrayBuffer());
     const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
-    const signatureDims = signatureImage.scale(0.2);
+    const signatureDims = signatureImage.scale(0.3);
 
     // Get current date
     const today = new Date();
@@ -45,35 +45,35 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
     // Draw Student Signature & Info (Left side)
     lastPage.drawImage(signatureImage, {
-      x: 80,
+      x: 85,
       y: 300,
       width: signatureDims.width,
       height: signatureDims.height,
     });
 
     lastPage.drawText(input.studentName, {
-      x: 95,
-      y: 278,
+      x: 85,
+      y: 270,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(getFullDocTypeName(input.documentType), {
-      x: 95,
-      y: 243,
+      x: 85,
+      y: 240,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(input.documentNumber, {
-      x: 80,
+      x: 85,
       y: 210,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(`Bogotá, ${dateStr}`, {
-      x: 80,
+      x: 85,
       y: 180,
       size: 10,
       color: rgb(0, 0, 0),
@@ -83,38 +83,38 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     if (input.isMinor && input.tutorSignatureDataUrl && input.tutorName) {
       const tutorSignatureBytes = await fetch(input.tutorSignatureDataUrl).then(res => res.arrayBuffer());
       const tutorSignatureImage = await pdfDoc.embedPng(tutorSignatureBytes);
-      const tutorSigDims = tutorSignatureImage.scale(0.2);
+      const tutorSigDims = tutorSignatureImage.scale(0.3);
 
       lastPage.drawImage(tutorSignatureImage, {
-        x: 320,
+        x: 325,
         y: 300,
         width: tutorSigDims.width,
         height: tutorSigDims.height,
       });
 
       lastPage.drawText(input.tutorName, {
-        x: 335,
-        y: 278,
+        x: 325,
+        y: 270,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(getFullDocTypeName('CC'), {
-        x: 335,
-        y: 243,
+        x: 325,
+        y: 240,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(input.tutorDocument || '', {
-        x: 320,
+        x: 325,
         y: 210,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(`Bogotá, ${dateStr}`, {
-        x: 320,
+        x: 325,
         y: 180,
         size: 10,
         color: rgb(0, 0, 0),
@@ -149,12 +149,35 @@ export const generateFichaMatriculaDocx = async (studentData: any): Promise<File
     // Mapear campos para coincidir con la plantilla DOCX
     const renderData = {
       ...studentData,
+      categoria: studentData.categoria || '',
+      fecha_ingreso: studentData.fecha_ingreso || today.toLocaleDateString('es-CO'),
       tipo_documento: getFullDocTypeName(studentData.tipo_documento || ''),
+      numero_documento: studentData.numero_documento || '',
+      nombres: studentData.nombres || '',
+      apellidos: studentData.apellidos || '',
+      genero: studentData.genero || '',
+      estado_civil: studentData.estado_civil || '',
+      fecha_nacimiento: studentData.fecha_nacimiento || '',
+      lugar_origen: studentData.lugar_origen || '',
+      estrato: studentData.estrato || '',
+      eps: studentData.eps || '',
+      nivel_formacion: studentData.nivel_formacion || '',
+      ocupacion: studentData.ocupacion || '',
+      email_1: studentData.email_1 || '',
+      email_2: studentData.email_2 || '',
+      celular: studentData.celular || '',
+      telefono_fijo: studentData.telefono_fijo || '',
+      direccion: studentData.direccion || '',
+      contacto_emergencia: studentData.contacto_emergencia || '',
+      celular_emergencia: studentData.celular_emergencia || '',
+      
+      // Variables extras por si acaso
       nombres_completos: `${studentData.nombres || ''} ${studentData.apellidos || ''}`.trim(),
       fecha_hoy: today.toLocaleDateString('es-CO'),
       ano: today.getFullYear().toString(),
       mes: (today.getMonth() + 1).toString().padStart(2, '0'),
       dia: today.getDate().toString().padStart(2, '0'),
+      
       // Soporte para acudiente si aplica
       acudiente_nombre: studentData.acudiente_nombre || 'N/A',
       acudiente_documento: studentData.acudiente_documento || 'N/A',

@@ -203,6 +203,11 @@ const MatriculaAlumno = () => {
         !formData.apellidos || 
         !formData.numero_documento || 
         !formData.fecha_nacimiento ||
+        !formData.lugar_origen ||
+        !formData.eps ||
+        !formData.ocupacion ||
+        !formData.estrato ||
+        !formData.nivel_formacion ||
         !formData.email_1 ||
         !formData.celular ||
         !formData.direccion ||
@@ -212,7 +217,7 @@ const MatriculaAlumno = () => {
         toast({
           variant: 'destructive',
           title: 'Datos incompletos',
-          description: 'Por favor complete todos los datos personales obligatorios.'
+          description: 'Por favor complete todos los datos obligatorios.'
         });
         return;
       }
@@ -440,6 +445,25 @@ const MatriculaAlumno = () => {
       }
       setCropModalOpen(false);
     }
+  };
+
+  const rotateImage = () => {
+    if (!currentCropImage) return;
+    const img = new Image();
+    img.src = currentCropImage;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.height;
+      canvas.height = img.width;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((90 * Math.PI) / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        setCurrentCropImage(canvas.toDataURL('image/jpeg', 0.8));
+        setCrop({ unit: '%', width: 90, height: 60, x: 5, y: 20 });
+      }
+    };
   };
 
   return (
@@ -1104,9 +1128,13 @@ const MatriculaAlumno = () => {
 
       {cropModalOpen && currentCropImage && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-4">
-          <div className="text-white text-lg font-bold mb-4">Recorte su documento</div>
-          <p className="text-white/70 text-sm mb-4 text-center">Ajuste el recuadro para que solo se vea la cédula, sin el fondo.</p>
-          <div className="max-h-[60vh] max-w-full overflow-auto">
+          <div className="text-white text-lg font-bold mb-2">Recorte y Ajuste su documento</div>
+          <div className="bg-amber-500/20 text-amber-300 px-4 py-2 rounded-lg text-xs font-medium mb-4 flex items-center justify-center gap-2 max-w-sm text-center">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+            Recuerde tomar la foto de frente. Si la tomó de lado, use el botón "Rotar".
+          </div>
+          <p className="text-white/70 text-xs mb-4 text-center max-w-sm">Ajuste el recuadro para que solo se vea la cédula, sin el fondo.</p>
+          <div className="max-h-[50vh] max-w-full overflow-auto rounded-lg shadow-2xl bg-black/50">
             <ReactCrop 
               crop={crop} 
               onChange={c => setCrop(c)} 
@@ -1116,13 +1144,16 @@ const MatriculaAlumno = () => {
                 src={currentCropImage} 
                 ref={imageRef} 
                 alt="Crop" 
-                className="max-w-full max-h-[50vh] object-contain" 
+                className="max-w-full max-h-[45vh] object-contain" 
               />
             </ReactCrop>
           </div>
-          <div className="flex gap-4 mt-6">
-            <Button variant="outline" className="bg-white text-black hover:bg-gray-200" onClick={() => setCropModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCropCompleteAction}>Recortar y Guardar</Button>
+          <div className="flex gap-3 mt-6 w-full max-w-sm justify-center">
+            <Button variant="outline" className="bg-white text-black hover:bg-gray-200 text-xs" onClick={() => setCropModalOpen(false)}>Cancelar</Button>
+            <Button variant="secondary" className="text-xs font-semibold px-4" onClick={rotateImage}>
+              Rotar 90°
+            </Button>
+            <Button className="text-xs font-semibold px-4" onClick={handleCropCompleteAction}>Guardar</Button>
           </div>
         </div>
       )}
