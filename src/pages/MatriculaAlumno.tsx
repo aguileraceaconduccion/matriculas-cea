@@ -504,7 +504,6 @@ const MatriculaAlumno = () => {
                 <div className="space-y-1">
                   <Label>Nombres *</Label>
                   <Input 
-                    placeholder="Juan" 
                     value={formData.nombres}
                     onChange={(e) => setFormData(prev => ({ ...prev, nombres: e.target.value }))}
                   />
@@ -512,7 +511,6 @@ const MatriculaAlumno = () => {
                 <div className="space-y-1">
                   <Label>Apellidos *</Label>
                   <Input 
-                    placeholder="Pérez" 
                     value={formData.apellidos}
                     onChange={(e) => setFormData(prev => ({ ...prev, apellidos: e.target.value }))}
                   />
@@ -536,7 +534,6 @@ const MatriculaAlumno = () => {
                   <Label>Identificación *</Label>
                   <Input 
                     type="number"
-                    placeholder="12345678" 
                     value={formData.numero_documento}
                     onChange={(e) => setFormData(prev => ({ ...prev, numero_documento: e.target.value }))}
                   />
@@ -575,7 +572,6 @@ const MatriculaAlumno = () => {
                   <div className="space-y-1.5">
                     <Label className="text-amber-950">Nombre Completo del Acudiente *</Label>
                     <Input 
-                      placeholder="Padre / Madre / Tutor"
                       value={formData.acudiente_nombre}
                       onChange={(e) => setFormData(prev => ({ ...prev, acudiente_nombre: e.target.value }))}
                       className="bg-card border-amber-300"
@@ -585,7 +581,6 @@ const MatriculaAlumno = () => {
                     <div className="space-y-1">
                       <Label className="text-amber-950">Cédula Acudiente *</Label>
                       <Input 
-                        placeholder="Documento"
                         value={formData.acudiente_documento}
                         onChange={(e) => setFormData(prev => ({ ...prev, acudiente_documento: e.target.value }))}
                         className="bg-card border-amber-300"
@@ -594,7 +589,6 @@ const MatriculaAlumno = () => {
                     <div className="space-y-1">
                       <Label className="text-amber-950">Celular Acudiente *</Label>
                       <Input 
-                        placeholder="Celular"
                         type="tel"
                         value={formData.acudiente_celular}
                         onChange={(e) => setFormData(prev => ({ ...prev, acudiente_celular: e.target.value }))}
@@ -607,15 +601,14 @@ const MatriculaAlumno = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Lugar de Origen</Label>
+                  <Label>Lugar de Origen *</Label>
                   <Input 
-                    placeholder="Bogotá" 
                     value={formData.lugar_origen}
                     onChange={(e) => setFormData(prev => ({ ...prev, lugar_origen: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Estado Civil</Label>
+                  <Label>Estado Civil *</Label>
                   <select 
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus-visible:outline-none"
                     value={formData.estado_civil}
@@ -642,9 +635,8 @@ const MatriculaAlumno = () => {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>EPS</Label>
+                  <Label>EPS *</Label>
                   <Input 
-                    placeholder="Sanitas" 
                     value={formData.eps}
                     onChange={(e) => setFormData(prev => ({ ...prev, eps: e.target.value }))}
                   />
@@ -653,7 +645,7 @@ const MatriculaAlumno = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Nivel de Formación</Label>
+                  <Label>Nivel de Formación *</Label>
                   <select 
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus-visible:outline-none"
                     value={formData.nivel_formacion}
@@ -665,9 +657,8 @@ const MatriculaAlumno = () => {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Ocupación</Label>
+                  <Label>Ocupación *</Label>
                   <Input 
-                    placeholder="Estudiante / Empleado" 
                     value={formData.ocupacion}
                     onChange={(e) => setFormData(prev => ({ ...prev, ocupacion: e.target.value }))}
                   />
@@ -677,7 +668,6 @@ const MatriculaAlumno = () => {
               <div className="space-y-1">
                 <Label>Dirección de Residencia *</Label>
                 <Input 
-                  placeholder="Calle 123 # 45 - 67" 
                   value={formData.direccion}
                   onChange={(e) => setFormData(prev => ({ ...prev, direccion: e.target.value }))}
                 />
@@ -688,7 +678,6 @@ const MatriculaAlumno = () => {
                   <Label>Celular *</Label>
                   <Input 
                     type="tel"
-                    placeholder="3001234567" 
                     value={formData.celular}
                     onChange={(e) => setFormData(prev => ({ ...prev, celular: e.target.value }))}
                   />
@@ -696,7 +685,6 @@ const MatriculaAlumno = () => {
                 <div className="space-y-1">
                   <Label>Teléfono Fijo</Label>
                   <Input 
-                    placeholder="6011234567" 
                     value={formData.telefono_fijo}
                     onChange={(e) => setFormData(prev => ({ ...prev, telefono_fijo: e.target.value }))}
                   />
@@ -707,7 +695,6 @@ const MatriculaAlumno = () => {
                 <Label>Correo Electrónico (Email 1) *</Label>
                 <Input 
                   type="email"
-                  placeholder="alumno@correo.com" 
                   value={formData.email_1}
                   onChange={(e) => setFormData(prev => ({ ...prev, email_1: e.target.value }))}
                 />
@@ -717,7 +704,6 @@ const MatriculaAlumno = () => {
                 <div className="space-y-1">
                   <Label>Contacto de Emergencia *</Label>
                   <Input 
-                    placeholder="Nombre Familiar" 
                     value={formData.contacto_emergencia}
                     onChange={(e) => setFormData(prev => ({ ...prev, contacto_emergencia: e.target.value }))}
                   />
@@ -726,7 +712,6 @@ const MatriculaAlumno = () => {
                   <Label>Celular Emergencia *</Label>
                   <Input 
                     type="tel"
-                    placeholder="3101234567" 
                     value={formData.celular_emergencia}
                     onChange={(e) => setFormData(prev => ({ ...prev, celular_emergencia: e.target.value }))}
                   />
@@ -734,9 +719,8 @@ const MatriculaAlumno = () => {
               </div>
 
               <div className="space-y-1">
-                <Label>Asesor Comercial</Label>
+                <Label>Asesor Comercial *</Label>
                 <Input 
-                  placeholder="Nombre Asesor" 
                   value={formData.asesor}
                   onChange={(e) => setFormData(prev => ({ ...prev, asesor: e.target.value }))}
                 />
