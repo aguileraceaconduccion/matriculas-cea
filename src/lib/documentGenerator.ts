@@ -37,7 +37,7 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     // Embed student signature
     const signatureImageBytes = await fetch(input.signatureDataUrl).then(res => res.arrayBuffer());
     const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
-    const signatureDims = signatureImage.scale(0.3);
+    const signatureDims = signatureImage.scale(0.2);
 
     // Get current date
     const today = new Date();
@@ -46,7 +46,7 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     // Draw Student Signature & Info (Left side)
     lastPage.drawImage(signatureImage, {
       x: 85,
-      y: 315,
+      y: 295,
       width: signatureDims.width,
       height: signatureDims.height,
     });
@@ -83,11 +83,11 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     if (input.isMinor && input.tutorSignatureDataUrl && input.tutorName) {
       const tutorSignatureBytes = await fetch(input.tutorSignatureDataUrl).then(res => res.arrayBuffer());
       const tutorSignatureImage = await pdfDoc.embedPng(tutorSignatureBytes);
-      const tutorSigDims = tutorSignatureImage.scale(0.3);
+      const tutorSigDims = tutorSignatureImage.scale(0.2);
 
       lastPage.drawImage(tutorSignatureImage, {
         x: 325,
-        y: 315,
+        y: 295,
         width: tutorSigDims.width,
         height: tutorSigDims.height,
       });
