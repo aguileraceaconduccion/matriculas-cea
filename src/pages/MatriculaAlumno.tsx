@@ -9,7 +9,7 @@ import {
 import SignatureCanvas from 'react-signature-canvas';
 import { 
   Car, FileText, Camera, Upload, Check, AlertTriangle, 
-  ChevronRight, ChevronLeft, Loader2, Sparkles, X, Image as ImageIcon
+  ChevronRight, ChevronLeft, Loader2, Sparkles, X, Image as ImageIcon, RotateCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,12 +19,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import ReactCrop, { type Crop } from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
-
 import { convertImagesToPdf } from '@/lib/documentGenerator';
+import { ScannerCropModal } from '../components/enrollment/ScannerCropModal';
 
-const compressImage = (file: File): Promise<string> => {
+  const compressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -33,8 +31,9 @@ const compressImage = (file: File): Promise<string> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200;
-        const MAX_HEIGHT = 1600;
+        // Aumentamos resolución máxima para que el texto sea más legible
+        const MAX_WIDTH = 2000;
+        const MAX_HEIGHT = 2800;
         let width = img.width;
         let height = img.height;
 
@@ -52,8 +51,15 @@ const compressImage = (file: File): Promise<string> => {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.6));
+        if (ctx) {
+          // Autocorrección básica: mejora leve de contraste y brillo para documentos
+          ctx.filter = 'contrast(1.15) brightness(1.05) saturate(1.1)';
+          ctx.drawImage(img, 0, 0, width, height);
+          // Aumentamos la calidad JPG de 0.6 a 0.9 para evitar píxeles borrosos
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        } else {
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        }
       };
       img.onerror = (error) => reject(error);
     };
@@ -118,19 +124,10 @@ const MatriculaAlumno = () => {
   const [backPhoto, setBackPhoto] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Crop State
+  // Document cropping states
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [currentCropImage, setCurrentCropImage] = useState<string | null>(null);
   const [currentCropSide, setCurrentCropSide] = useState<'front' | 'back' | null>(null);
-  const [crop, setCrop] = useState<Crop>({
-    unit: '%',
-    width: 90,
-    height: 60,
-    x: 5,
-    y: 20
-  });
-  const [completedCrop, setCompletedCrop] = useState<any>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
 
   // Paso 4: Habeas Data
   const [habeasAccepted, setHabeasAccepted] = useState(false);
@@ -417,65 +414,24 @@ const MatriculaAlumno = () => {
   const handlePhotoSelectForCrop = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
     const file = e.target.files?.[0];
     if (file) {
-      const compressed = await compressImage(file);
-      setCurrentCropImage(compressed);
+      const objectUrl = URL.createObjectURL(file);
+      setCurrentCropImage(objectUrl);
       setCurrentCropSide(side);
       setCropModalOpen(true);
     }
     e.target.value = '';
   };
 
-  const handleCropCompleteAction = () => {
-    if (!completedCrop || !imageRef.current || !currentCropImage) return;
-
-    const canvas = document.createElement('canvas');
-    const image = imageRef.current;
-    const scaleX = image.naturalWidth / image.width;
-    const scaleY = image.naturalHeight / image.height;
-    
-    canvas.width = completedCrop.width;
-    canvas.height = completedCrop.height;
-    const ctx = canvas.getContext('2d');
-    
-    if (ctx) {
-      ctx.drawImage(
-        image,
-        completedCrop.x * scaleX,
-        completedCrop.y * scaleY,
-        completedCrop.width * scaleX,
-        completedCrop.height * scaleY,
-        0,
-        0,
-        completedCrop.width,
-        completedCrop.height
-      );
-      const croppedUrl = canvas.toDataURL('image/jpeg', 0.8);
-      if (currentCropSide === 'front') {
-        setFrontPhoto(croppedUrl);
-      } else {
-        setBackPhoto(croppedUrl);
-      }
-      setCropModalOpen(false);
+  const handleCropCompleteAction = (scannedDataUrl: string) => {
+    if (currentCropSide === 'front') {
+      setFrontPhoto(scannedDataUrl);
+    } else {
+      setBackPhoto(scannedDataUrl);
     }
-  };
-
-  const rotateImage = () => {
-    if (!currentCropImage) return;
-    const img = new Image();
-    img.src = currentCropImage;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.height;
-      canvas.height = img.width;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((90 * Math.PI) / 180);
-        ctx.drawImage(img, -img.width / 2, -img.height / 2);
-        setCurrentCropImage(canvas.toDataURL('image/jpeg', 0.8));
-        setCrop({ unit: '%', width: 90, height: 60, x: 5, y: 20 });
-      }
-    };
+    
+    // Automatically generate PDF if both sides are ready
+    setCropModalOpen(false);
+    setCurrentCropImage(null);
   };
 
   return (
@@ -1123,35 +1079,12 @@ const MatriculaAlumno = () => {
       </main>
 
       {cropModalOpen && currentCropImage && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-4">
-          <div className="text-white text-lg font-bold mb-2">Recorte y Ajuste su documento</div>
-          <div className="bg-amber-500/20 text-amber-300 px-4 py-2 rounded-lg text-xs font-medium mb-4 flex items-center justify-center gap-2 max-w-sm text-center">
-            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-            Recuerde tomar la foto de frente. Si la tomó de lado, use el botón "Rotar".
-          </div>
-          <p className="text-white/70 text-xs mb-4 text-center max-w-sm">Ajuste el recuadro para que solo se vea la cédula, sin el fondo.</p>
-          <div className="max-h-[50vh] max-w-full overflow-auto rounded-lg shadow-2xl bg-black/50">
-            <ReactCrop 
-              crop={crop} 
-              onChange={c => setCrop(c)} 
-              onComplete={c => setCompletedCrop(c)}
-            >
-              <img 
-                src={currentCropImage} 
-                ref={imageRef} 
-                alt="Crop" 
-                className="max-w-full max-h-[45vh] object-contain" 
-              />
-            </ReactCrop>
-          </div>
-          <div className="flex gap-3 mt-6 w-full max-w-sm justify-center">
-            <Button variant="outline" className="bg-white text-black hover:bg-gray-200 text-xs" onClick={() => setCropModalOpen(false)}>Cancelar</Button>
-            <Button variant="secondary" className="text-xs font-semibold px-4" onClick={rotateImage}>
-              Rotar 90°
-            </Button>
-            <Button className="text-xs font-semibold px-4" onClick={handleCropCompleteAction}>Guardar</Button>
-          </div>
-        </div>
+        <ScannerCropModal 
+          isOpen={cropModalOpen}
+          imageSrc={currentCropImage}
+          onClose={() => setCropModalOpen(false)}
+          onComplete={handleCropCompleteAction}
+        />
       )}
     </div>
   );

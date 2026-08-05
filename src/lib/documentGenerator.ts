@@ -215,10 +215,14 @@ export const convertImagesToPdf = async (frontDataUrl: string, backDataUrl: stri
       ? await pdfDoc.embedPng(frontImageBytes) 
       : await pdfDoc.embedJpg(frontImageBytes);
       
-    const frontDims = frontImage.scaleToFit(500, 350);
+    // Ajuste de tamaño exacto solicitado: 80-85% del ancho de la hoja (usamos 82.5%)
+    const maxW = pageW * 0.825;
+    const maxH = pageH * 0.45;
+    
+    const frontDims = frontImage.scaleToFit(maxW, maxH);
     page.drawImage(frontImage, {
       x: pageW / 2 - frontDims.width / 2,
-      y: (pageH * 0.75) - (frontDims.height / 2),
+      y: (pageH * 0.72) - (frontDims.height / 2),
       width: frontDims.width,
       height: frontDims.height,
     });
@@ -229,10 +233,10 @@ export const convertImagesToPdf = async (frontDataUrl: string, backDataUrl: stri
       ? await pdfDoc.embedPng(backImageBytes) 
       : await pdfDoc.embedJpg(backImageBytes);
       
-    const backDims = backImage.scaleToFit(500, 350);
+    const backDims = backImage.scaleToFit(maxW, maxH);
     page.drawImage(backImage, {
       x: pageW / 2 - backDims.width / 2,
-      y: (pageH * 0.25) - (backDims.height / 2),
+      y: (pageH * 0.28) - (backDims.height / 2),
       width: backDims.width,
       height: backDims.height,
     });
