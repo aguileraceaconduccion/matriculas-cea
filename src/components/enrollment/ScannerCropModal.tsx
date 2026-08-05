@@ -332,6 +332,7 @@ export const ScannerCropModal: React.FC<ScannerCropModalProps> = ({ isOpen, imag
           boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
           cursor: 'grab',
           touchAction: 'none',
+          pointerEvents: 'auto',
           zIndex: 10
         }}
       />
@@ -360,7 +361,7 @@ export const ScannerCropModal: React.FC<ScannerCropModalProps> = ({ isOpen, imag
         />
         
         {corners && (
-          <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
+          <div className="absolute inset-0 flex justify-center items-center">
             {/* SVG debe estar posicionado exactamente sobre la imagen real renderizada */}
             <div style={{ position: 'relative', width: imgRef.current?.width || 0, height: imgRef.current?.height || 0 }}>
               <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
