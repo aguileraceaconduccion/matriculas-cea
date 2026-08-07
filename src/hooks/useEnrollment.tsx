@@ -443,7 +443,21 @@ export const useEnrollment = () => {
         body: { alumnoId, solicitudId }
       });
 
-      if (error) throw error;
+      if (error) {
+        let exactError = error.message;
+        try {
+          // Attempt to extract the real JSON error from the Edge Function context
+          const contextObj = (error as any).context;
+          if (contextObj) {
+            const bodyStr = await contextObj.text();
+            const bodyJson = JSON.parse(bodyStr);
+            if (bodyJson.error) exactError = bodyJson.error;
+          }
+        } catch (e) {
+          console.error("No se pudo extraer el error detallado", e);
+        }
+        throw new Error(`Edge Function: ${exactError}`);
+      }
 
       // Actualizar estado de solicitud
       await supabase
@@ -452,7 +466,7 @@ export const useEnrollment = () => {
         .eq('id', solicitudId);
 
       return data;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error enviando expediente a academia:', err);
       throw err;
     } finally {

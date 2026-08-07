@@ -411,6 +411,41 @@ const MatriculaAlumno = () => {
       </div>
     );
   }
+  const dataURLtoFile = (dataurl: string, filename: string) => {
+    let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)![1],
+        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, {type:mime});
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          variant: 'destructive',
+          title: 'Archivo muy grande',
+          description: 'El archivo no debe superar los 10MB.'
+        });
+        return;
+      }
+      
+      try {
+        const compressedDataUrl = await compressImage(file);
+        setFotoPreview(compressedDataUrl);
+        const compressedFile = dataURLtoFile(compressedDataUrl, file.name);
+        setFotoFile(compressedFile);
+      } catch (error) {
+        console.error("Error comprimiendo foto:", error);
+        // Fallback a original
+        setFotoFile(file);
+        setFotoPreview(URL.createObjectURL(file));
+      }
+    }
+  };
+
   const handlePhotoSelectForCrop = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
     const file = e.target.files?.[0];
     if (file) {
