@@ -292,7 +292,7 @@ export const ScannerCropModal: React.FC<ScannerCropModalProps> = ({ isOpen, imag
       const warped = warpPerspective(srcCanvas, corners, outW, outH);
       const enhanced = enhanceImage(warped);
       
-      const finalDataUrl = enhanced.toDataURL('image/png');
+      const finalDataUrl = enhanced.toDataURL('image/jpeg', 0.92);
       onComplete(finalDataUrl);
     } catch (e) {
       console.error("Error procesando imagen:", e);
