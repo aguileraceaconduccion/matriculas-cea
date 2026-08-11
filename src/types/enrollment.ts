@@ -38,6 +38,7 @@ export interface Solicitud {
   categoria: string;
   estado: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Aprobado' | 'Rechazado';
   created_at: string;
+  alumnos?: { tipo_documento: string; numero_documento: string }[];
 }
 
 export const CATEGORIAS_LICENCIA = [
@@ -47,9 +48,13 @@ export const CATEGORIAS_LICENCIA = [
   { value: 'B2', label: 'B2 - Buses y camiones particulares' },
   { value: 'C1', label: 'C1 - Automóviles y camionetas públicas' },
   { value: 'C2', label: 'C2 - Buses y camiones públicos' },
+  { value: 'C3', label: 'C3 - Tractocamiones, buses articulados' },
   { value: 'A2 y B1', label: 'A2 y B1 - Moto y Automóvil particular' },
   { value: 'A2 y C2', label: 'A2 y C2 - Moto y Camión público' },
   { value: 'A2 y C1', label: 'A2 y C1 - Moto y Automóvil público' },
+  { value: 'Recategorización C1', label: 'Recategorización C1' },
+  { value: 'Recategorización C2', label: 'Recategorización C2' },
+  { value: 'Recategorización C3', label: 'Recategorización C3' },
 ] as const;
 
 export const TIPOS_DOCUMENTO = [

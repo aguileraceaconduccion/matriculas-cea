@@ -14,7 +14,7 @@ export const useEnrollment = () => {
     try {
       const { data, error } = await supabase
         .from('solicitudes')
-        .select('*')
+        .select('*, alumnos(tipo_documento, numero_documento)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;

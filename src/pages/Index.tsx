@@ -384,7 +384,8 @@ const Index = () => {
       sol.nombre_alumno.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sol.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sol.celular.includes(searchTerm) ||
-      sol.codigo_unico.toLowerCase().includes(searchTerm.toLowerCase());
+      sol.codigo_unico.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (sol.alumnos && sol.alumnos.length > 0 && sol.alumnos[0].numero_documento.includes(searchTerm));
 
     if (activeTab === 'todos') return matchesSearch;
     if (activeTab === 'enviadas') return matchesSearch && sol.estado === 'Enviado a academia';
@@ -528,6 +529,11 @@ const Index = () => {
                         {sol.categoria}
                       </Badge>
                     </div>
+                    {sol.alumnos && sol.alumnos.length > 0 && (
+                      <div className="text-xs text-muted-foreground font-medium">
+                        {sol.alumnos[0].tipo_documento} {sol.alumnos[0].numero_documento}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>{new Date(sol.created_at).toLocaleDateString('es-CO')}</span>
