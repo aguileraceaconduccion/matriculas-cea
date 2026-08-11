@@ -81,7 +81,8 @@ const MatriculaAlumno = () => {
 
   // Stepper
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const totalSteps = 5;
+  const requiresLicense = formData.categoria?.startsWith('Recategorización');
+  const totalSteps = requiresLicense ? 6 : 5;
 
   // Paso 1: Datos Ficha de Matrícula
   const [formData, setFormData] = useState<AlumnoData>({
@@ -124,8 +125,14 @@ const MatriculaAlumno = () => {
   const [backPhoto, setBackPhoto] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
+  // Paso 3.5: Licencia de Conducción
+  const [licenciaFile, setLicenciaFile] = useState<File | null>(null);
+  const [licenciaUploadMode, setLicenciaUploadMode] = useState<'pdf' | 'photo'>('pdf');
+  const [licenciaFrontPhoto, setLicenciaFrontPhoto] = useState<string | null>(null);
+  const [licenciaBackPhoto, setLicenciaBackPhoto] = useState<string | null>(null);
+  const [isGeneratingLicenciaPdf, setIsGeneratingLicenciaPdf] = useState(false);
   // Document cropping states
-  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropModalOpen, setCropModalOpen] = useState<boolean | 'licencia'>(false);
   const [currentCropImage, setCurrentCropImage] = useState<string | null>(null);
   const [currentCropSide, setCurrentCropSide] = useState<'front' | 'back' | null>(null);
 
@@ -264,7 +271,18 @@ const MatriculaAlumno = () => {
       }
     }
 
-    if (currentStep === 4) {
+    if (requiresLicense && currentStep === 4) {
+      if (!licenciaFile) {
+        toast({
+          variant: 'destructive',
+          title: 'Licencia PDF obligatoria',
+          description: 'Para recategorización, debe cargar su licencia actual en formato PDF.'
+        });
+        return;
+      }
+    }
+
+    if ((requiresLicense && currentStep === 5) || (!requiresLicense && currentStep === 4)) {
       if (!habeasAccepted) {
         toast({
           variant: 'destructive',
@@ -349,7 +367,8 @@ const MatriculaAlumno = () => {
         fotoFile,
         cedulaFile,
         studentSignature,
-        formData.es_menor_edad ? tutorSignature || undefined : undefined
+        formData.es_menor_edad ? tutorSignature || undefined : undefined,
+        licenciaFile || undefined
       );
 
       toast({
@@ -446,22 +465,24 @@ const MatriculaAlumno = () => {
     }
   };
 
-  const handlePhotoSelectForCrop = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
+  const handlePhotoSelectForCrop = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back', isLicencia: boolean = false) => {
     const file = e.target.files?.[0];
     if (file) {
       const objectUrl = URL.createObjectURL(file);
       setCurrentCropImage(objectUrl);
       setCurrentCropSide(side);
-      setCropModalOpen(true);
+      setCropModalOpen(isLicencia ? 'licencia' : true);
     }
     e.target.value = '';
   };
 
   const handleCropCompleteAction = (scannedDataUrl: string) => {
     if (currentCropSide === 'front') {
-      setFrontPhoto(scannedDataUrl);
+      if (cropModalOpen === 'licencia') setLicenciaFrontPhoto(scannedDataUrl);
+      else setFrontPhoto(scannedDataUrl);
     } else {
-      setBackPhoto(scannedDataUrl);
+      if (cropModalOpen === 'licencia') setLicenciaBackPhoto(scannedDataUrl);
+      else setBackPhoto(scannedDataUrl);
     }
     
     // Automatically generate PDF if both sides are ready
@@ -953,8 +974,159 @@ const MatriculaAlumno = () => {
           </Card>
         )}
 
-        {/* PASO 4: Habeas Data y Firmas */}
-        {currentStep === 4 && (
+        {/* PASO 4: Licencia de Conducción (Solo para Recategorizaciones) */}
+        {requiresLicense && currentStep === 4 && (
+          <Card className="shadow-md border-muted-foreground/10 rounded-2xl text-center">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center justify-center gap-2">
+                <FileText className="w-5 h-5 text-primary" /> Licencia de Conducción
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Por ser una recategorización, cargue su licencia actual en PDF o tome fotos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 py-6">
+              
+              <div className="flex gap-2 justify-center mb-4">
+                <Button 
+                  variant={licenciaUploadMode === 'pdf' ? 'default' : 'outline'} 
+                  size="sm" 
+                  onClick={() => setLicenciaUploadMode('pdf')}
+                  className="w-1/2 text-[11px]"
+                >
+                  Subir PDF
+                </Button>
+                <Button 
+                  variant={licenciaUploadMode === 'photo' ? 'default' : 'outline'} 
+                  size="sm" 
+                  onClick={() => setLicenciaUploadMode('photo')}
+                  className="w-1/2 text-[11px]"
+                >
+                  Tomar Fotos
+                </Button>
+              </div>
+
+              {licenciaUploadMode === 'photo' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] text-center block">Frente de la Licencia</Label>
+                      <label className="flex flex-col items-center justify-center gap-2 h-24 w-full bg-muted/50 border-2 border-dashed border-primary/30 rounded-xl cursor-pointer hover:bg-muted text-xs transition-colors overflow-hidden relative">
+                        {licenciaFrontPhoto ? (
+                          <img src={licenciaFrontPhoto} className="absolute inset-0 w-full h-full object-cover" />
+                        ) : (
+                          <>
+                            <Camera className="w-6 h-6 text-primary/70" />
+                            <span className="text-[10px] text-muted-foreground">Capturar</span>
+                          </>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => handlePhotoSelectForCrop(e, 'front', true)} 
+                          className="hidden" 
+                        />
+                      </label>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] text-center block">Reverso de la Licencia</Label>
+                      <label className="flex flex-col items-center justify-center gap-2 h-24 w-full bg-muted/50 border-2 border-dashed border-primary/30 rounded-xl cursor-pointer hover:bg-muted text-xs transition-colors overflow-hidden relative">
+                        {licenciaBackPhoto ? (
+                          <img src={licenciaBackPhoto} className="absolute inset-0 w-full h-full object-cover" />
+                        ) : (
+                          <>
+                            <Camera className="w-6 h-6 text-primary/70" />
+                            <span className="text-[10px] text-muted-foreground">Capturar</span>
+                          </>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => handlePhotoSelectForCrop(e, 'back', true)} 
+                          className="hidden" 
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <Button 
+                    className="w-full text-xs" 
+                    disabled={!licenciaFrontPhoto || !licenciaBackPhoto || isGeneratingLicenciaPdf}
+                    onClick={async () => {
+                      if (licenciaFrontPhoto && licenciaBackPhoto) {
+                        setIsGeneratingLicenciaPdf(true);
+                        try {
+                          const pdfFile = await convertImagesToPdf(licenciaFrontPhoto, licenciaBackPhoto, `${formData.nombres} ${formData.apellidos}`);
+                          setLicenciaFile(pdfFile);
+                          setLicenciaUploadMode('pdf');
+                          toast({ title: 'PDF Generado', description: 'Se ha creado el documento correctamente.' });
+                        } catch (error) {
+                          toast({ variant: 'destructive', title: 'Error', description: 'No se pudo generar el PDF.' });
+                        } finally {
+                          setIsGeneratingLicenciaPdf(false);
+                        }
+                      }
+                    }}
+                  >
+                    {isGeneratingLicenciaPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                    Convertir a PDF
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="w-48 h-48 mx-auto bg-muted rounded-2xl flex flex-col items-center justify-center border-4 border-dashed border-muted-foreground/20 text-muted-foreground p-4">
+                    {licenciaFile ? (
+                      <>
+                        <FileText className="w-12 h-12 text-primary mb-2" />
+                        <span className="text-[10px] font-bold text-foreground truncate max-w-full">{licenciaFile.name}</span>
+                        <span className="text-[9px] text-muted-foreground mt-1">{(licenciaFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-10 h-10 mb-2 opacity-50" />
+                        <span className="text-[10px]">Arrastra o selecciona el archivo PDF</span>
+                      </>
+                    )}
+                  </div>
+  
+                  <div className="max-w-xs mx-auto">
+                    <label className="flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors">
+                      <Upload className="w-4 h-4" /> Seleccionar Archivo PDF
+                      <input 
+                        type="file" 
+                        accept="application/pdf" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.type !== 'application/pdf') {
+                              toast({ variant: 'destructive', title: 'Formato incorrecto', description: 'Únicamente se aceptan archivos PDF.' });
+                              return;
+                            }
+                            if (file.size > 10 * 1024 * 1024) {
+                              toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo excede el tamaño máximo de 10 MB.' });
+                              return;
+                            }
+                            setLicenciaFile(file);
+                          }
+                        }} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
+
+              {licenciaFile && (
+                <p className="text-[10px] text-green-600 font-semibold">✓ Documento listo para subir</p>
+              )}
+
+            </CardContent>
+          </Card>
+        )}
+
+        {/* PASO 4 o 5: Habeas Data y Firmas */}
+        {((requiresLicense && currentStep === 5) || (!requiresLicense && currentStep === 4)) && (
           <Card className="shadow-md border-muted-foreground/10 rounded-2xl">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Tratamiento de Datos Personales</CardTitle>
@@ -1023,8 +1195,8 @@ const MatriculaAlumno = () => {
           </Card>
         )}
 
-        {/* PASO 5: Checklist & Enviar */}
-        {currentStep === 5 && (
+        {/* PASO 5 o 6: Checklist & Enviar */}
+        {((requiresLicense && currentStep === 6) || (!requiresLicense && currentStep === 5)) && (
           <Card className="shadow-md border-muted-foreground/10 rounded-2xl">
             <CardHeader className="pb-3 text-center">
               <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary mb-2">
@@ -1056,6 +1228,12 @@ const MatriculaAlumno = () => {
                   <span className="text-muted-foreground">Cédula Identidad (PDF)</span>
                   <Badge className="bg-green-100 text-green-700">Listo</Badge>
                 </div>
+                {requiresLicense && (
+                  <div className="flex items-center justify-between border-b pb-1.5">
+                    <span className="text-muted-foreground">Licencia de Conducción (PDF)</span>
+                    <Badge className="bg-green-100 text-green-700">Listo</Badge>
+                  </div>
+                )}
                 <div className="flex items-center justify-between border-b pb-1.5">
                   <span className="text-muted-foreground">Habeas Data firmado</span>
                   <Badge className="bg-green-100 text-green-700">Listo</Badge>
@@ -1115,7 +1293,7 @@ const MatriculaAlumno = () => {
 
       {cropModalOpen && currentCropImage && (
         <ScannerCropModal 
-          isOpen={cropModalOpen}
+          isOpen={!!cropModalOpen}
           imageSrc={currentCropImage}
           onClose={() => setCropModalOpen(false)}
           onComplete={handleCropCompleteAction}

@@ -792,6 +792,13 @@ const Index = () => {
                             {renderDocStatus('cedula_pdf')}
                           </div>
 
+                          {selectedSolicitud.categoria?.startsWith('Recategorización') && (
+                            <div className="flex items-center justify-between border-b pb-1.5 text-xs">
+                              <span className="text-muted-foreground">Licencia de Conducción (PDF)</span>
+                              {renderDocStatus('licencia_pdf')}
+                            </div>
+                          )}
+
                           {/* Items Instructor */}
                           <div className="flex items-center justify-between border-b pb-1.5 text-xs">
                             <span className="text-muted-foreground">Comprobante Pago PIN</span>

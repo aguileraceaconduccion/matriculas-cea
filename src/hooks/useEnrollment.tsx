@@ -247,7 +247,8 @@ export const useEnrollment = () => {
     fotoFile: File,
     cedulaPdfFile: File,
     studentSignatureUrl: string,
-    tutorSignatureUrl?: string
+    tutorSignatureUrl?: string,
+    licenciaPdfFile?: File
   ) => {
     setLoading(true);
     try {
@@ -361,6 +362,24 @@ export const useEnrollment = () => {
         storage_path: cedulaPath
       });
       if (dbCedErr) throw dbCedErr;
+
+      // 4.5. Subir Licencia de Conducción en PDF (Si aplica)
+      if (licenciaPdfFile) {
+        const licenciaPath = `${alumnoId}/Licencia_${cleanName}.pdf`;
+        const { error: upLicErr } = await supabase.storage
+          .from('expedientes')
+          .upload(licenciaPath, licenciaPdfFile, { contentType: 'application/pdf', upsert: true });
+
+        if (upLicErr) throw upLicErr;
+
+        const { error: dbLicErr } = await supabase.from('documentos').insert({
+          alumno_id: alumnoId,
+          tipo: 'licencia_pdf',
+          nombre_archivo: `Licencia_${cleanName}.pdf`,
+          storage_path: licenciaPath
+        });
+        if (dbLicErr) throw dbLicErr;
+      }
 
       // 5. Generar y Subir Habeas Data PDF
       const habeasPdfFile = await generateHabeasDataPDF({
