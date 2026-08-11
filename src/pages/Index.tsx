@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEnrollment } from '@/hooks/useEnrollment';
-import type { Solicitud } from '@/types/enrollment';
+import { CATEGORIAS_LICENCIA, type Solicitud } from '@/types/enrollment';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Car, LogOut, Plus, Search, Mail, Phone, Calendar, 
@@ -651,13 +651,11 @@ const Index = () => {
                     value={newCategoria} 
                     onChange={(e) => setNewCategoria(e.target.value)}
                   >
-                    <option value="A2">A2 (Moto)</option>
-                    <option value="B1">B1 (Carro)</option>
-                    <option value="C1">C1 (Público)</option>
-                    <option value="C2">C2 (Camión)</option>
-                    <option value="A2 y B1">A2 y B1</option>
-                    <option value="A2 y C2">A2 y C2</option>
-                    <option value="A2 y C1">A2 y C1</option>
+                    {CATEGORIAS_LICENCIA.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
