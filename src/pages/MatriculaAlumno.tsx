@@ -81,8 +81,6 @@ const MatriculaAlumno = () => {
 
   // Stepper
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const requiresLicense = formData.categoria?.startsWith('Recategorización');
-  const totalSteps = requiresLicense ? 6 : 5;
 
   // Paso 1: Datos Ficha de Matrícula
   const [formData, setFormData] = useState<AlumnoData>({
@@ -113,6 +111,9 @@ const MatriculaAlumno = () => {
     acudiente_documento: '',
     acudiente_celular: ''
   });
+
+  const requiresLicense = formData.categoria?.startsWith('Recategorización');
+  const totalSteps = requiresLicense ? 6 : 5;
 
   // Paso 2: Fotografía
   const [fotoFile, setFotoFile] = useState<File | null>(null);
