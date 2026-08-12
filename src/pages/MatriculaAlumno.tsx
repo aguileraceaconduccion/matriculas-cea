@@ -118,6 +118,7 @@ const MatriculaAlumno = () => {
   // Paso 2: Fotografía
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [showPhotoInstructions, setShowPhotoInstructions] = useState(false);
 
   // Paso 3: Cédula
   const [cedulaFile, setCedulaFile] = useState<File | null>(null);
@@ -780,40 +781,12 @@ const MatriculaAlumno = () => {
               )}
 
               <div className="flex flex-col gap-2 max-w-xs mx-auto">
-                {/* Botón para cámara nativa del celular */}
-                <label className="flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors">
-                  <Camera className="w-4 h-4" /> Tomar Foto con la Cámara
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    capture="user" 
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setFotoFile(file);
-                        setFotoPreview(URL.createObjectURL(file));
-                      }
-                    }} 
-                    className="hidden" 
-                  />
-                </label>
-                
-                {/* Botón para subir archivo desde galería */}
-                <label className="flex items-center justify-center gap-2 h-11 w-full bg-secondary text-secondary-foreground font-semibold rounded-xl cursor-pointer hover:bg-secondary/90 text-xs transition-colors">
-                  <Upload className="w-4 h-4" /> Seleccionar de la Galería
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setFotoFile(file);
-                        setFotoPreview(URL.createObjectURL(file));
-                      }
-                    }} 
-                    className="hidden" 
-                  />
-                </label>
+                <Button 
+                  onClick={() => setShowPhotoInstructions(true)}
+                  className="flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors"
+                >
+                  <Camera className="w-4 h-4" /> Tomar o Subir Fotografía
+                </Button>
               </div>
 
               {fotoFile && (
@@ -900,8 +873,20 @@ const MatriculaAlumno = () => {
                       </label>
                     </div>
                   </div>
+                  {frontPhoto && backPhoto && !isGeneratingPdf && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-xs font-medium animate-in fade-in slide-in-from-bottom-2 mb-3">
+                      <p className="flex items-center gap-2 justify-center">
+                        <AlertTriangle className="w-4 h-4" /> 
+                        ¡Fotos listas! Presiona "Convertir a PDF" para continuar.
+                      </p>
+                    </div>
+                  )}
                   <Button 
-                    className="w-full text-xs" 
+                    className={`w-full text-sm py-6 font-bold uppercase tracking-wide shadow-lg transition-all ${
+                      frontPhoto && backPhoto && !isGeneratingPdf 
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white animate-pulse' 
+                        : ''
+                    }`}
                     disabled={!frontPhoto || !backPhoto || isGeneratingPdf}
                     onClick={async () => {
                       if (frontPhoto && backPhoto) {
@@ -919,7 +904,7 @@ const MatriculaAlumno = () => {
                       }
                     }}
                   >
-                    {isGeneratingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                    {isGeneratingPdf ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <FileText className="w-5 h-5 mr-2" />}
                     Convertir a PDF
                   </Button>
                 </div>
@@ -968,7 +953,20 @@ const MatriculaAlumno = () => {
               )}
 
               {cedulaFile && (
-                <p className="text-[10px] text-green-600 font-semibold">✓ Documento listo para subir</p>
+                <div className="bg-green-50 border border-green-200 p-5 rounded-2xl text-center animate-in zoom-in-95 duration-300 mt-4">
+                  <div className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center mx-auto text-white mb-3 shadow-md">
+                    <Check className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-green-900 font-bold text-base mb-1">¡PDF Generado Exitosamente!</h4>
+                  <p className="text-green-700 text-sm mb-5">El documento está optimizado y listo.</p>
+                  
+                  <Button 
+                    onClick={handleNextStep}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-12 text-sm uppercase tracking-wide"
+                  >
+                    Siguiente Paso <ChevronRight className="w-5 h-5 ml-1" />
+                  </Button>
+                </div>
               )}
 
             </CardContent>
@@ -1051,8 +1049,20 @@ const MatriculaAlumno = () => {
                       </label>
                     </div>
                   </div>
+                  {licenciaFrontPhoto && licenciaBackPhoto && !isGeneratingLicenciaPdf && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-xs font-medium animate-in fade-in slide-in-from-bottom-2 mb-3">
+                      <p className="flex items-center gap-2 justify-center">
+                        <AlertTriangle className="w-4 h-4" /> 
+                        ¡Fotos listas! Presiona "Convertir a PDF" para continuar.
+                      </p>
+                    </div>
+                  )}
                   <Button 
-                    className="w-full text-xs" 
+                    className={`w-full text-sm py-6 font-bold uppercase tracking-wide shadow-lg transition-all ${
+                      licenciaFrontPhoto && licenciaBackPhoto && !isGeneratingLicenciaPdf 
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white animate-pulse' 
+                        : ''
+                    }`}
                     disabled={!licenciaFrontPhoto || !licenciaBackPhoto || isGeneratingLicenciaPdf}
                     onClick={async () => {
                       if (licenciaFrontPhoto && licenciaBackPhoto) {
@@ -1070,7 +1080,7 @@ const MatriculaAlumno = () => {
                       }
                     }}
                   >
-                    {isGeneratingLicenciaPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                    {isGeneratingLicenciaPdf ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <FileText className="w-5 h-5 mr-2" />}
                     Convertir a PDF
                   </Button>
                 </div>
@@ -1119,7 +1129,20 @@ const MatriculaAlumno = () => {
               )}
 
               {licenciaFile && (
-                <p className="text-[10px] text-green-600 font-semibold">✓ Documento listo para subir</p>
+                <div className="bg-green-50 border border-green-200 p-5 rounded-2xl text-center animate-in zoom-in-95 duration-300 mt-4">
+                  <div className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center mx-auto text-white mb-3 shadow-md">
+                    <Check className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-green-900 font-bold text-base mb-1">¡PDF Generado Exitosamente!</h4>
+                  <p className="text-green-700 text-sm mb-5">El documento está optimizado y listo.</p>
+                  
+                  <Button 
+                    onClick={handleNextStep}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-12 text-sm uppercase tracking-wide"
+                  >
+                    Siguiente Paso <ChevronRight className="w-5 h-5 ml-1" />
+                  </Button>
+                </div>
               )}
 
             </CardContent>
@@ -1299,6 +1322,59 @@ const MatriculaAlumno = () => {
           onClose={() => setCropModalOpen(false)}
           onComplete={handleCropCompleteAction}
         />
+      )}
+
+      {showPhotoInstructions && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <Card className="max-w-md w-full shadow-xl rounded-2xl">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-xl">Instrucciones de Fotografía</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-center">
+              <p className="text-sm font-semibold text-primary">
+                Tómate la foto de frente con fondo en blanco, el rostro despejado y bien iluminado. No USES gafas de sol, gorra o algún tipo de accesorio en la cabeza.
+              </p>
+              <p className="text-sm font-bold uppercase tracking-wide">
+                Recuerda que la foto es TIPO DOCUMENTO
+              </p>
+              
+              <div className="mx-auto overflow-hidden rounded-xl border-4 border-muted/50 my-4" style={{ width: '200px', height: '200px' }}>
+                <img src="/ejemplo-foto.png" alt="Ejemplo Foto Tipo Documento" className="w-full h-full object-cover" />
+              </div>
+              
+              <div className="pt-2 flex flex-col gap-2">
+                <label className="w-full flex items-center justify-center gap-2 h-11 bg-primary text-primary-foreground font-bold rounded-xl cursor-pointer hover:bg-primary/95 text-sm transition-colors shadow-sm">
+                  Entendido, tomar foto
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="user"
+                    onChange={(e) => {
+                      setShowPhotoInstructions(false);
+                      handlePhotoSelect(e);
+                    }} 
+                    className="hidden" 
+                  />
+                </label>
+                <label className="w-full flex items-center justify-center gap-2 h-11 bg-secondary text-secondary-foreground font-bold rounded-xl cursor-pointer hover:bg-secondary/90 text-sm transition-colors">
+                  Subir de galería
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      setShowPhotoInstructions(false);
+                      handlePhotoSelect(e);
+                    }} 
+                    className="hidden" 
+                  />
+                </label>
+                <Button variant="ghost" onClick={() => setShowPhotoInstructions(false)} className="mt-2 text-muted-foreground">
+                  Cancelar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
