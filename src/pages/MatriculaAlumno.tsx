@@ -7,6 +7,7 @@ import {
   ESTADOS_CIVILES, ESTRATOS, NIVELES_FORMACION 
 } from '@/types/enrollment';
 import SignatureCanvas from 'react-signature-canvas';
+import ejemploFoto from '@/assets/ejemplo-foto.png';
 import { 
   Car, FileText, Camera, Upload, Check, AlertTriangle, 
   ChevronRight, ChevronLeft, Loader2, Sparkles, X, Image as ImageIcon, RotateCw
@@ -1339,7 +1340,7 @@ const MatriculaAlumno = () => {
               </p>
               
               <div className="mx-auto overflow-hidden rounded-xl border-4 border-muted/50 my-4" style={{ width: '200px', height: '200px' }}>
-                <img src="/ejemplo-foto.png" alt="Ejemplo Foto Tipo Documento" className="w-full h-full object-cover" />
+                <img src={ejemploFoto} alt="Ejemplo Foto Tipo Documento" className="w-full h-full object-cover" />
               </div>
               
               <div className="pt-2 flex flex-col gap-2">
