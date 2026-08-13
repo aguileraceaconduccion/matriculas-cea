@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS public.documentos (
     tipo TEXT NOT NULL CHECK (tipo IN (
         'foto',
         'cedula_pdf',
+        'licencia_pdf',
         'pago_pin',
         'pago_teoria',
         'ficha_matricula',

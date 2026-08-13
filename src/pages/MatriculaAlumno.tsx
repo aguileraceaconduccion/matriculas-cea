@@ -927,7 +927,7 @@ const MatriculaAlumno = () => {
                   </div>
   
                   <div className="max-w-xs mx-auto">
-                    <label className="flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors">
+                    <label className="relative flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors overflow-hidden">
                       <Upload className="w-4 h-4" /> Seleccionar Archivo PDF
                       <input 
                         type="file" 
@@ -946,7 +946,7 @@ const MatriculaAlumno = () => {
                             setCedulaFile(file);
                           }
                         }} 
-                        className="hidden" 
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                       />
                     </label>
                   </div>
@@ -1103,7 +1103,7 @@ const MatriculaAlumno = () => {
                   </div>
   
                   <div className="max-w-xs mx-auto">
-                    <label className="flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors">
+                    <label className="relative flex items-center justify-center gap-2 h-11 w-full bg-primary text-primary-foreground font-semibold rounded-xl cursor-pointer hover:bg-primary/95 shadow-sm text-xs transition-colors overflow-hidden">
                       <Upload className="w-4 h-4" /> Seleccionar Archivo PDF
                       <input 
                         type="file" 
@@ -1122,7 +1122,7 @@ const MatriculaAlumno = () => {
                             setLicenciaFile(file);
                           }
                         }} 
-                        className="hidden" 
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                       />
                     </label>
                   </div>
