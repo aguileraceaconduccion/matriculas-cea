@@ -71,6 +71,8 @@ export const useEnrollment = () => {
         .from('alumnos')
         .select('*')
         .eq('solicitud_id', solicitudId)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (alumnoError) throw alumnoError;
@@ -81,6 +83,8 @@ export const useEnrollment = () => {
         .from('acudientes')
         .select('*')
         .eq('alumno_id', alumno.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       // 3. Obtener documentos
