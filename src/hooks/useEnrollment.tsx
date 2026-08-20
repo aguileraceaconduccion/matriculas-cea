@@ -30,21 +30,24 @@ export const useEnrollment = () => {
   // Crear una nueva solicitud de matrícula
   const createSolicitud = async (
     nombre_alumno: string,
-    email: string,
     celular: string,
-    categoria: string
+    categoria: string,
+    tipo_documento?: string,
+    numero_documento?: string,
+    nombres?: string,
+    apellidos?: string
   ) => {
     setLoading(true);
     try {
       // Generar código único aleatorio de 8 caracteres
       const codigo_unico = Math.random().toString(36).substring(2, 10).toUpperCase();
       
-      const { data, error } = await supabase
+      const { data: solData, error: solError } = await supabase
         .from('solicitudes')
         .insert({
           codigo_unico,
           nombre_alumno,
-          email,
+          email: '',
           celular,
           categoria,
           estado: 'Solicitud enviada'
@@ -52,8 +55,28 @@ export const useEnrollment = () => {
         .select()
         .single();
 
-      if (error) throw error;
-      return data as Solicitud;
+      if (solError) throw solError;
+
+      // Si se proporcionó documento, crear registro inicial en alumnos
+      if (tipo_documento && numero_documento) {
+        const { error: alumnoErr } = await supabase
+          .from('alumnos')
+          .insert({
+            solicitud_id: solData.id,
+            categoria,
+            tipo_documento,
+            numero_documento,
+            nombres: nombres || nombre_alumno,
+            apellidos: apellidos || '',
+            celular
+          });
+
+        if (alumnoErr) {
+          console.warn('Advertencia al insertar alumno inicial:', alumnoErr);
+        }
+      }
+
+      return solData as Solicitud;
     } catch (err) {
       console.error('Error al crear solicitud:', err);
       throw err;
@@ -217,12 +240,12 @@ export const useEnrollment = () => {
     try {
       const { data, error } = await supabase
         .from('solicitudes')
-        .select('*')
+        .select('*, alumnos(*)')
         .eq('codigo_unico', token)
         .maybeSingle();
 
       if (error) throw error;
-      return data as Solicitud | null;
+      return data as (Solicitud & { alumnos?: any[] }) | null;
     } catch (err) {
       console.error('Error al buscar solicitud por token:', err);
       throw err;
@@ -265,40 +288,86 @@ export const useEnrollment = () => {
         // Ignorar
       }
 
-      // 1. Insertar registro en alumnos
-      const { data: newAlumno, error: insertAlumnoErr } = await supabase
+      // 1. Verificar si ya existe registro en alumnos para esta solicitud
+      const { data: existingAlumno } = await supabase
         .from('alumnos')
-        .insert({
-          solicitud_id: solicitud.id,
-          categoria: alumnoData.categoria,
-          fecha_ingreso: alumnoData.fecha_ingreso,
-          tipo_documento: alumnoData.tipo_documento,
-          numero_documento: alumnoData.numero_documento,
-          nombres: alumnoData.nombres,
-          apellidos: alumnoData.apellidos,
-          genero: alumnoData.genero,
-          estado_civil: alumnoData.estado_civil,
-          fecha_nacimiento: alumnoData.fecha_nacimiento,
-          lugar_origen: alumnoData.lugar_origen,
-          estrato: alumnoData.estrato,
-          eps: alumnoData.eps,
-          nivel_formacion: alumnoData.nivel_formacion,
-          ocupacion: alumnoData.ocupacion,
-          email_1: alumnoData.email_1,
-          email_2: alumnoData.email_2 || null,
-          celular: alumnoData.celular,
-          telefono_fijo: alumnoData.telefono_fijo || null,
-          direccion: alumnoData.direccion,
-          contacto_emergencia: alumnoData.contacto_emergencia,
-          celular_emergencia: alumnoData.celular_emergencia,
-          asesor: alumnoData.asesor,
-          es_menor_edad: alumnoData.es_menor_edad
-        })
-        .select()
-        .single();
+        .select('id')
+        .eq('solicitud_id', solicitud.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (insertAlumnoErr) throw insertAlumnoErr;
-      const alumnoId = newAlumno.id;
+      let alumnoId: string;
+
+      if (existingAlumno?.id) {
+        const { data: updatedAlumno, error: updateErr } = await supabase
+          .from('alumnos')
+          .update({
+            categoria: alumnoData.categoria,
+            fecha_ingreso: alumnoData.fecha_ingreso,
+            tipo_documento: alumnoData.tipo_documento,
+            numero_documento: alumnoData.numero_documento,
+            nombres: alumnoData.nombres,
+            apellidos: alumnoData.apellidos,
+            genero: alumnoData.genero,
+            estado_civil: alumnoData.estado_civil,
+            fecha_nacimiento: alumnoData.fecha_nacimiento,
+            lugar_origen: alumnoData.lugar_origen,
+            estrato: alumnoData.estrato,
+            eps: alumnoData.eps,
+            nivel_formacion: alumnoData.nivel_formacion,
+            ocupacion: alumnoData.ocupacion,
+            email_1: alumnoData.email_1,
+            email_2: alumnoData.email_2 || null,
+            celular: alumnoData.celular,
+            telefono_fijo: alumnoData.telefono_fijo || null,
+            direccion: alumnoData.direccion,
+            contacto_emergencia: alumnoData.contacto_emergencia,
+            celular_emergencia: alumnoData.celular_emergencia,
+            asesor: alumnoData.asesor,
+            es_menor_edad: alumnoData.es_menor_edad
+          })
+          .eq('id', existingAlumno.id)
+          .select()
+          .single();
+
+        if (updateErr) throw updateErr;
+        alumnoId = updatedAlumno.id;
+      } else {
+        const { data: newAlumno, error: insertAlumnoErr } = await supabase
+          .from('alumnos')
+          .insert({
+            solicitud_id: solicitud.id,
+            categoria: alumnoData.categoria,
+            fecha_ingreso: alumnoData.fecha_ingreso,
+            tipo_documento: alumnoData.tipo_documento,
+            numero_documento: alumnoData.numero_documento,
+            nombres: alumnoData.nombres,
+            apellidos: alumnoData.apellidos,
+            genero: alumnoData.genero,
+            estado_civil: alumnoData.estado_civil,
+            fecha_nacimiento: alumnoData.fecha_nacimiento,
+            lugar_origen: alumnoData.lugar_origen,
+            estrato: alumnoData.estrato,
+            eps: alumnoData.eps,
+            nivel_formacion: alumnoData.nivel_formacion,
+            ocupacion: alumnoData.ocupacion,
+            email_1: alumnoData.email_1,
+            email_2: alumnoData.email_2 || null,
+            celular: alumnoData.celular,
+            telefono_fijo: alumnoData.telefono_fijo || null,
+            direccion: alumnoData.direccion,
+            contacto_emergencia: alumnoData.contacto_emergencia,
+            celular_emergencia: alumnoData.celular_emergencia,
+            asesor: alumnoData.asesor,
+            es_menor_edad: alumnoData.es_menor_edad
+          })
+          .select()
+          .single();
+
+        if (insertAlumnoErr) throw insertAlumnoErr;
+        alumnoId = newAlumno.id;
+      }
 
       // 2. Si es menor de edad, cargar firma y datos de acudiente
       if (alumnoData.es_menor_edad && tutorSignatureUrl && alumnoData.acudiente_nombre) {
@@ -439,10 +508,13 @@ export const useEnrollment = () => {
       });
       if (dbFicErr) throw dbFicErr;
 
-      // 7. Actualizar el estado de la solicitud
+      // 7. Actualizar el estado de la solicitud y el correo
       const { error: updateSolErr } = await supabase
         .from('solicitudes')
-        .update({ estado: 'Pendiente pagos instructor' })
+        .update({ 
+          estado: 'Pendiente pagos instructor',
+          email: alumnoData.email_1 
+        })
         .eq('id', solicitud.id);
 
       if (updateSolErr) throw updateSolErr;

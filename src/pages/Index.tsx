@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEnrollment } from '@/hooks/useEnrollment';
-import { CATEGORIAS_LICENCIA, type Solicitud } from '@/types/enrollment';
+import { CATEGORIAS_LICENCIA, TIPOS_DOCUMENTO, type Solicitud } from '@/types/enrollment';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Car, LogOut, Plus, Search, Mail, Phone, Calendar, 
   CheckCircle, Clock, AlertCircle, FileText, Send, 
-  Share2, Copy, Settings, ArrowLeft, Loader2, Upload, FileCheck, Trash2
+  Share2, Copy, Settings, ArrowLeft, Loader2, Upload, FileCheck, Trash2,
+  FileSpreadsheet, Download
 } from 'lucide-react';
+import { exportEnrollmentBackupToExcel } from '@/lib/excelExport';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,7 +30,8 @@ const Index = () => {
   const { user, signOut, loading: authLoading } = useAuth();
   const { 
     loading: enrollmentLoading, getSolicitudes, createSolicitud, 
-    getAlumnoDetails, uploadInstructorPayments, sendExpedienteEmail, deleteSolicitud
+    getAlumnoDetails, uploadInstructorPayments, sendExpedienteEmail, deleteSolicitud,
+    updateSolicitudEstado
   } = useEnrollment();
   const { toast } = useToast();
 
@@ -40,8 +43,9 @@ const Index = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newNombres, setNewNombres] = useState('');
   const [newApellidos, setNewApellidos] = useState('');
+  const [newTipoDocumento, setNewTipoDocumento] = useState('CC');
+  const [newNumeroDocumento, setNewNumeroDocumento] = useState('');
   const [newCelular, setNewCelular] = useState('');
-  const [newCorreo, setNewCorreo] = useState('');
   const [newCategoria, setNewCategoria] = useState('B1');
   const [generatedLink, setGeneratedLink] = useState('');
   const [justCreated, setJustCreated] = useState<Solicitud | null>(null);
@@ -62,6 +66,7 @@ const Index = () => {
   const [asuntoTemplate, setAsuntoTemplate] = useState('');
   const [mensajeTemplate, setMensajeTemplate] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Seguridad Ágil
   const [isAgileLocked, setIsAgileLocked] = useState(localStorage.getItem('agile_auth') !== 'true');
@@ -216,6 +221,29 @@ const Index = () => {
     }
   };
 
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      toast({
+        title: 'Generando respaldo Excel...',
+        description: 'Recopilando datos y enlaces de documentos...'
+      });
+      const result = await exportEnrollmentBackupToExcel();
+      toast({
+        title: 'Respaldo generado con éxito',
+        description: `Se descargó el archivo ${result.fileName} con ${result.count} alumnos.`
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error al generar Excel',
+        description: err.message
+      });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   const handleDeleteSolicitud = async (id: string, nombre: string) => {
     if (window.confirm(`¿Está seguro que desea eliminar a ${nombre} y todos sus documentos de forma permanente?`)) {
       try {
@@ -240,7 +268,7 @@ const Index = () => {
 
   const handleCreateSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNombres || !newApellidos || !newCelular || !newCorreo) {
+    if (!newNombres || !newApellidos || !newCelular || !newNumeroDocumento) {
       toast({
         variant: 'destructive',
         title: 'Campos incompletos',
@@ -251,7 +279,15 @@ const Index = () => {
 
     try {
       const fullName = `${newNombres.trim()}  ${newApellidos.trim()}`;
-      const solicitud = await createSolicitud(fullName, newCorreo, newCelular, newCategoria);
+      const solicitud = await createSolicitud(
+        fullName,
+        newCelular.trim(),
+        newCategoria,
+        newTipoDocumento,
+        newNumeroDocumento.trim(),
+        newNombres.trim(),
+        newApellidos.trim()
+      );
       const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
       const link = `${baseUrl}#/matricula/${solicitud.codigo_unico}`;
       setGeneratedLink(link);
@@ -265,8 +301,9 @@ const Index = () => {
       // Limpiar y recargar
       setNewNombres('');
       setNewApellidos('');
+      setNewTipoDocumento('CC');
+      setNewNumeroDocumento('');
       setNewCelular('');
-      setNewCorreo('');
       loadData();
     } catch (err: any) {
       toast({
@@ -295,6 +332,22 @@ const Index = () => {
         description: err.message
       });
     }
+  };
+
+  const handleCloseSheet = async () => {
+    if (selectedSolicitud) {
+      // Si la solicitud estaba en 'Solicitud enviada' o 'Alumno diligenciando',
+      // al revisarla y cerrarla cambia automáticamente a 'Pendiente pagos instructor' (Falta Pago)
+      if (['Solicitud enviada', 'Alumno diligenciando'].includes(selectedSolicitud.estado)) {
+        try {
+          await updateSolicitudEstado(selectedSolicitud.id, 'Pendiente pagos instructor');
+          loadData();
+        } catch (e) {
+          console.error("Error al actualizar estado al cerrar revisión:", e);
+        }
+      }
+    }
+    setSelectedSolicitud(null);
   };
 
   const handleUploadPayments = async () => {
@@ -423,6 +476,21 @@ const Index = () => {
             <span className="font-display font-bold text-lg">Driving Enrolamiento</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportExcel} 
+              disabled={isExportingExcel} 
+              className="gap-1.5 rounded-xl border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+              title="Descargar copia de respaldo en Excel con enlaces a documentos"
+            >
+              {isExportingExcel ? (
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              )}
+              <span>Excel</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={handleOpenConfig} className="hidden sm:flex gap-2 rounded-xl">
               <Settings className="w-4 h-4" /> Configuración
             </Button>
@@ -435,35 +503,6 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container max-w-lg mx-auto px-4 mt-6">
-        
-        {/* Estadísticas rápidas scrollable horizontal */}
-        <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-          <Card className="flex-shrink-0 w-32 border-l-4 border-l-blue-500 bg-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground font-medium">Solicitadas</p>
-              <p className="text-2xl font-bold mt-1">{countState('Solicitud enviada') + countState('Alumno diligenciando')}</p>
-            </CardContent>
-          </Card>
-          <Card className="flex-shrink-0 w-32 border-l-4 border-l-amber-500 bg-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground font-medium">Falta Pago</p>
-              <p className="text-2xl font-bold mt-1 text-amber-600">{countState('Pendiente pagos instructor')}</p>
-            </CardContent>
-          </Card>
-          <Card className="flex-shrink-0 w-32 border-l-4 border-l-green-500 bg-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground font-medium">Completas</p>
-              <p className="text-2xl font-bold mt-1 text-green-600">{countState('Completo')}</p>
-            </CardContent>
-          </Card>
-          <Card className="flex-shrink-0 w-32 border-l-4 border-l-slate-400 bg-card">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground font-medium">Enviadas</p>
-              <p className="text-2xl font-bold mt-1 text-slate-500">{countState('Enviado a academia')}</p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Buscador */}
         <div className="relative mt-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -543,7 +582,7 @@ const Index = () => {
                   <div className="flex items-center gap-3">
                     <div>
                       {sol.estado === 'Solicitud enviada' && (
-                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">Enviada</Badge>
+                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">Recibida</Badge>
                       )}
                       {sol.estado === 'Alumno diligenciando' && (
                         <Badge variant="secondary" className="bg-sky-50 text-sky-700 hover:bg-sky-50 border-sky-200">Diligenciando</Badge>
@@ -634,6 +673,34 @@ const Index = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
+                  <Label htmlFor="newTipoDocumento">Tipo de Documento</Label>
+                  <select 
+                    id="newTipoDocumento"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={newTipoDocumento} 
+                    onChange={(e) => setNewTipoDocumento(e.target.value)}
+                  >
+                    {TIPOS_DOCUMENTO.map((doc) => (
+                      <option key={doc.value} value={doc.value}>
+                        {doc.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="newNumeroDocumento">Número de Documento</Label>
+                  <Input 
+                    id="newNumeroDocumento" 
+                    type="text"
+                    value={newNumeroDocumento} 
+                    onChange={(e) => setNewNumeroDocumento(e.target.value)} 
+                    placeholder="Ej. 1020304050"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <Label htmlFor="newCelular">Celular</Label>
                   <Input 
                     id="newCelular" 
@@ -658,16 +725,6 @@ const Index = () => {
                     ))}
                   </select>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="newCorreo">Correo Electrónico</Label>
-                <Input 
-                  id="newCorreo" 
-                  type="email"
-                  value={newCorreo} 
-                  onChange={(e) => setNewCorreo(e.target.value)} 
-                  required
-                />
               </div>
 
               <DialogFooter className="pt-2">
@@ -717,7 +774,7 @@ const Index = () => {
       </Dialog>
 
       {/* SHEET: Detalle de Matrícula (Revisión y pagos) */}
-      <Sheet open={!!selectedSolicitud} onOpenChange={() => setSelectedSolicitud(null)}>
+      <Sheet open={!!selectedSolicitud} onOpenChange={(open) => { if (!open) handleCloseSheet(); }}>
         <SheetContent side="right" className="w-[92%] sm:max-w-md overflow-y-auto px-4 pb-8">
           <SheetHeader className="pb-4 border-b">
             <SheetTitle className="text-lg">Revisar Matrícula</SheetTitle>
@@ -734,9 +791,25 @@ const Index = () => {
                 <h3 className="text-sm font-bold text-foreground">Estudiante</h3>
                 <div className="bg-muted/40 p-3 rounded-lg space-y-1 text-xs">
                   <p className="font-semibold text-foreground text-sm">{selectedSolicitud.nombre_alumno}</p>
-                  <p className="flex items-center gap-1.5 text-muted-foreground mt-1"><Mail className="w-3.5 h-3.5" /> {selectedSolicitud.email}</p>
-                  <p className="flex items-center gap-1.5 text-muted-foreground"><Phone className="w-3.5 h-3.5" /> {selectedSolicitud.celular}</p>
-                  <p className="mt-1">Categoría: <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{selectedSolicitud.categoria}</Badge></p>
+                  {(alumnoDetails?.alumno?.numero_documento || (selectedSolicitud.alumnos && selectedSolicitud.alumnos[0]?.numero_documento)) && (
+                    <p className="text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
+                      <span className="bg-primary/10 text-primary px-1.5 py-0.2 rounded font-mono text-[11px]">
+                        {alumnoDetails?.alumno?.tipo_documento || selectedSolicitud.alumnos?.[0]?.tipo_documento || 'CC'}
+                      </span>
+                      {alumnoDetails?.alumno?.numero_documento || selectedSolicitud.alumnos?.[0]?.numero_documento}
+                    </p>
+                  )}
+                  {(alumnoDetails?.alumno?.email_1 || selectedSolicitud.email) && (
+                    <p className="flex items-center gap-1.5 text-muted-foreground mt-1">
+                      <Mail className="w-3.5 h-3.5" /> {alumnoDetails?.alumno?.email_1 || selectedSolicitud.email}
+                    </p>
+                  )}
+                  <p className="flex items-center gap-1.5 text-muted-foreground">
+                    <Phone className="w-3.5 h-3.5" /> {selectedSolicitud.celular}
+                  </p>
+                  <p className="mt-1">
+                    Categoría: <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{selectedSolicitud.categoria}</Badge>
+                  </p>
                 </div>
               </div>
 
@@ -932,7 +1005,7 @@ const Index = () => {
           )}
 
           <SheetFooter className="mt-6 border-t pt-4">
-            <Button variant="ghost" onClick={() => setSelectedSolicitud(null)} className="w-full">Cerrar</Button>
+            <Button variant="ghost" onClick={handleCloseSheet} className="w-full">Cerrar</Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
@@ -982,10 +1055,20 @@ const Index = () => {
                 value={mensajeTemplate} 
                 onChange={(e) => setMensajeTemplate(e.target.value)} 
                 placeholder="Cordial saludo..."
-                rows={5}
+                rows={4}
                 className="resize-none text-xs"
               />
               <span className="text-[9px] text-muted-foreground block">Keywords: {"{NombreAlumno}"}, {"{TipoDocumento}"}, {"{NumeroDocumento}"}, {"{Categoria}"}</span>
+            </div>
+
+            {/* Sincronización Automática con Google Sheets */}
+            <div className="border-t pt-3 space-y-1.5">
+              <Label className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                <FileSpreadsheet className="w-4 h-4" /> Sincronización Automática con Google Sheets
+              </Label>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Para tener tu Google Sheet en Google Drive sincronizado automáticamente con la base de datos de Supabase, utiliza el script en <strong>Extensiones &gt; Apps Script</strong>.
+              </p>
             </div>
           </div>
 

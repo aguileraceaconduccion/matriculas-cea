@@ -173,13 +173,17 @@ const MatriculaAlumno = () => {
               apellidos = sol.nombre_alumno.split(' ').slice(1).join(' ') || '';
             }
 
+            const alumnoInfo = (sol as any).alumnos?.[0];
+
             setFormData(prev => ({
               ...prev,
-              nombres: nombres,
-              apellidos: apellidos,
-              email_1: sol.email,
-              celular: sol.celular,
-              categoria: sol.categoria
+              nombres: alumnoInfo?.nombres || nombres,
+              apellidos: alumnoInfo?.apellidos || apellidos,
+              tipo_documento: alumnoInfo?.tipo_documento || prev.tipo_documento || 'CC',
+              numero_documento: alumnoInfo?.numero_documento || prev.numero_documento || '',
+              email_1: alumnoInfo?.email_1 || sol.email || '',
+              celular: alumnoInfo?.celular || sol.celular || '',
+              categoria: alumnoInfo?.categoria || sol.categoria || 'B1'
             }));
           }
         } else {
