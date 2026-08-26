@@ -14,11 +14,49 @@ export const useEnrollment = () => {
     try {
       const { data, error } = await supabase
         .from('solicitudes')
-        .select('*, alumnos(tipo_documento, numero_documento)')
+        .select('*, alumnos(id, tipo_documento, numero_documento, documentos(tipo))')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Solicitud[];
+
+      const processedSolicitudes = (data || []).map((sol: any) => {
+        const allDocs = sol.alumnos?.flatMap((a: any) => a.documentos || []) || [];
+        const docTypes = allDocs.map((d: any) => d.tipo);
+
+        const hasStudentDocs = docTypes.includes('ficha_matricula') && 
+                               docTypes.includes('habeas_data') &&
+                               docTypes.includes('foto') &&
+                               docTypes.includes('cedula_pdf');
+        const hasPayments = docTypes.includes('pago_pin') && docTypes.includes('pago_teoria');
+
+        let computedEstado: Solicitud['estado'] = sol.estado;
+
+        if (sol.estado !== 'Enviado a academia') {
+          if (hasStudentDocs && hasPayments) {
+            computedEstado = 'Completo';
+          } else if (hasStudentDocs) {
+            computedEstado = 'Pendiente pagos instructor';
+          } else {
+            computedEstado = sol.estado === 'Alumno diligenciando' ? 'Alumno diligenciando' : 'Solicitud enviada';
+          }
+
+          // Si el estado en DB está desfasado con los documentos reales, actualizarlo en la base de datos
+          if (sol.estado !== computedEstado) {
+            supabase
+              .from('solicitudes')
+              .update({ estado: computedEstado })
+              .eq('id', sol.id)
+              .then();
+          }
+        }
+
+        return {
+          ...sol,
+          estado: computedEstado
+        };
+      });
+
+      return processedSolicitudes as Solicitud[];
     } catch (err) {
       console.error('Error al obtener solicitudes:', err);
       throw err;

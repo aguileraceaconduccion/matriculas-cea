@@ -8,7 +8,7 @@ import {
   Car, LogOut, Plus, Search, Mail, Phone, Calendar, 
   CheckCircle, Clock, AlertCircle, FileText, Send, 
   Share2, Copy, Settings, ArrowLeft, Loader2, Upload, FileCheck, Trash2,
-  FileSpreadsheet, Download
+  FileSpreadsheet, Download, RotateCw
 } from 'lucide-react';
 import { exportEnrollmentBackupToExcel } from '@/lib/excelExport';
 import { Button } from '@/components/ui/button';
@@ -85,10 +85,28 @@ const Index = () => {
     }
   };
 
-  // Cargar datos al inicio
+  // Cargar datos al inicio y suscribirse a cambios en tiempo real
   useEffect(() => {
     if (!isAgileLocked) {
       loadData();
+
+      // Suscribirse a cambios en tiempo real en la base de datos
+      const channel = supabase
+        .channel('solicitudes-realtime-channel')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => {
+          loadData();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos' }, () => {
+          loadData();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'alumnos' }, () => {
+          loadData();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [isAgileLocked]);
 
@@ -326,17 +344,28 @@ const Index = () => {
       const details = await getAlumnoDetails(solicitud.id);
       setAlumnoDetails(details);
 
-      // Auto-reparar si por error previo estaba marcada como 'Pendiente pagos instructor'
-      // pero el alumno aún no ha diligenciado/subido sus documentos (ficha_matricula y habeas_data)
-      if (solicitud.estado === 'Pendiente pagos instructor') {
-        const docs = details?.documentos || [];
-        const hasFicha = docs.some((d: any) => d.tipo === 'ficha_matricula');
-        const hasHabeas = docs.some((d: any) => d.tipo === 'habeas_data');
+      // Evaluar documentos reales y sincronizar estado
+      const docs = details?.documentos || [];
+      const docTypes = docs.map((d: any) => d.tipo);
+      const hasStudentDocs = docTypes.includes('ficha_matricula') && 
+                             docTypes.includes('habeas_data') &&
+                             docTypes.includes('foto') &&
+                             docTypes.includes('cedula_pdf');
+      const hasPayments = docTypes.includes('pago_pin') && docTypes.includes('pago_teoria');
 
-        if (!hasFicha || !hasHabeas) {
-          // El alumno aún NO ha completado la matrícula; restaurar estado a 'Solicitud enviada'
-          await updateSolicitudEstado(solicitud.id, 'Solicitud enviada');
-          setSelectedSolicitud((prev) => (prev ? { ...prev, estado: 'Solicitud enviada' } : null));
+      if (solicitud.estado !== 'Enviado a academia') {
+        let expectedEstado: Solicitud['estado'] = 'Solicitud enviada';
+        if (hasStudentDocs && hasPayments) {
+          expectedEstado = 'Completo';
+        } else if (hasStudentDocs) {
+          expectedEstado = 'Pendiente pagos instructor';
+        } else {
+          expectedEstado = solicitud.estado === 'Alumno diligenciando' ? 'Alumno diligenciando' : 'Solicitud enviada';
+        }
+
+        if (solicitud.estado !== expectedEstado) {
+          await updateSolicitudEstado(solicitud.id, expectedEstado);
+          setSelectedSolicitud((prev) => (prev ? { ...prev, estado: expectedEstado } : null));
           loadData();
         }
       }
@@ -479,6 +508,19 @@ const Index = () => {
             <span className="font-display font-bold text-lg">Driving Enrolamiento</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                loadData();
+                toast({ title: 'Actualizado', description: 'Listado sincronizado correctamente.' });
+              }} 
+              className="gap-1.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50"
+              title="Refrescar listado"
+            >
+              <RotateCw className="w-4 h-4 text-slate-600" />
+              <span className="hidden sm:inline">Refrescar</span>
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 
