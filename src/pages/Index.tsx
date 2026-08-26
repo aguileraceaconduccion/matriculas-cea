@@ -325,6 +325,21 @@ const Index = () => {
     try {
       const details = await getAlumnoDetails(solicitud.id);
       setAlumnoDetails(details);
+
+      // Auto-reparar si por error previo estaba marcada como 'Pendiente pagos instructor'
+      // pero el alumno aún no ha diligenciado/subido sus documentos (ficha_matricula y habeas_data)
+      if (solicitud.estado === 'Pendiente pagos instructor') {
+        const docs = details?.documentos || [];
+        const hasFicha = docs.some((d: any) => d.tipo === 'ficha_matricula');
+        const hasHabeas = docs.some((d: any) => d.tipo === 'habeas_data');
+
+        if (!hasFicha || !hasHabeas) {
+          // El alumno aún NO ha completado la matrícula; restaurar estado a 'Solicitud enviada'
+          await updateSolicitudEstado(solicitud.id, 'Solicitud enviada');
+          setSelectedSolicitud((prev) => (prev ? { ...prev, estado: 'Solicitud enviada' } : null));
+          loadData();
+        }
+      }
     } catch (err: any) {
       toast({
         variant: 'destructive',
@@ -334,19 +349,7 @@ const Index = () => {
     }
   };
 
-  const handleCloseSheet = async () => {
-    if (selectedSolicitud) {
-      // Si la solicitud estaba en 'Solicitud enviada' o 'Alumno diligenciando',
-      // al revisarla y cerrarla cambia automáticamente a 'Pendiente pagos instructor' (Falta Pago)
-      if (['Solicitud enviada', 'Alumno diligenciando'].includes(selectedSolicitud.estado)) {
-        try {
-          await updateSolicitudEstado(selectedSolicitud.id, 'Pendiente pagos instructor');
-          loadData();
-        } catch (e) {
-          console.error("Error al actualizar estado al cerrar revisión:", e);
-        }
-      }
-    }
+  const handleCloseSheet = () => {
     setSelectedSolicitud(null);
   };
 
@@ -441,17 +444,17 @@ const Index = () => {
       (sol.alumnos && sol.alumnos.length > 0 && sol.alumnos[0].numero_documento.includes(searchTerm));
 
     if (activeTab === 'todos') return matchesSearch;
-    if (activeTab === 'enviadas') return matchesSearch && sol.estado === 'Enviado a academia';
-    if (activeTab === 'completas') return matchesSearch && sol.estado === 'Completo';
+    if (activeTab === 'pendientes') return matchesSearch && (sol.estado === 'Solicitud enviada' || sol.estado === 'Alumno diligenciando');
     if (activeTab === 'pendientes_pago') return matchesSearch && sol.estado === 'Pendiente pagos instructor';
-    if (activeTab === 'diligenciando') return matchesSearch && sol.estado === 'Alumno diligenciando';
-    if (activeTab === 'solicitadas') return matchesSearch && sol.estado === 'Solicitud enviada';
+    if (activeTab === 'completas') return matchesSearch && sol.estado === 'Completo';
+    if (activeTab === 'enviadas') return matchesSearch && sol.estado === 'Enviado a academia';
 
     return matchesSearch;
   });
 
   // Conteo de estados
   const countState = (state: string) => solicitudes.filter(s => s.estado === state).length;
+  const countPendientes = solicitudes.filter(s => s.estado === 'Solicitud enviada' || s.estado === 'Alumno diligenciando').length;
 
   if (authLoading) {
     return (
@@ -526,6 +529,14 @@ const Index = () => {
             Todos
           </Button>
           <Button 
+            variant={activeTab === 'pendientes' ? 'default' : 'secondary'} 
+            size="sm"
+            onClick={() => setActiveTab('pendientes')}
+            className="rounded-full flex-shrink-0"
+          >
+            Pendientes ({countPendientes})
+          </Button>
+          <Button 
             variant={activeTab === 'pendientes_pago' ? 'default' : 'secondary'} 
             size="sm"
             onClick={() => setActiveTab('pendientes_pago')}
@@ -582,16 +593,16 @@ const Index = () => {
                   <div className="flex items-center gap-3">
                     <div>
                       {sol.estado === 'Solicitud enviada' && (
-                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">Recibida</Badge>
+                        <Badge variant="secondary" className="bg-amber-50/90 text-amber-800 hover:bg-amber-50/90 border-amber-200">Pendiente por diligenciar</Badge>
                       )}
                       {sol.estado === 'Alumno diligenciando' && (
                         <Badge variant="secondary" className="bg-sky-50 text-sky-700 hover:bg-sky-50 border-sky-200">Diligenciando</Badge>
                       )}
                       {sol.estado === 'Pendiente pagos instructor' && (
-                        <Badge variant="secondary" className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200 animate-pulse">Falta Pago</Badge>
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-900 hover:bg-amber-100 border-amber-300 animate-pulse font-medium">Falta Pago</Badge>
                       )}
                       {sol.estado === 'Completo' && (
-                        <Badge variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-50 border-green-200">Completa</Badge>
+                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200 font-medium">Completa</Badge>
                       )}
                       {sol.estado === 'Enviado a academia' && (
                         <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-100 border-slate-300">Enviado</Badge>

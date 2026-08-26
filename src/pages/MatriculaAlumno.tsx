@@ -120,6 +120,7 @@ const MatriculaAlumno = () => {
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [showPhotoInstructions, setShowPhotoInstructions] = useState(false);
+  const [showDocInstructions, setShowDocInstructions] = useState(false);
 
   // Paso 3: Cédula
   const [cedulaFile, setCedulaFile] = useState<File | null>(null);
@@ -265,6 +266,8 @@ const MatriculaAlumno = () => {
         });
         return;
       }
+      // Mostrar alerta e instrucciones del documento antes de ingresar al paso de carga de cédula
+      setShowDocInstructions(true);
     }
 
     if (currentStep === 3) {
@@ -275,6 +278,9 @@ const MatriculaAlumno = () => {
           description: 'Por favor cargue su documento de identidad en formato PDF.'
         });
         return;
+      }
+      if (requiresLicense) {
+        setShowDocInstructions(true);
       }
     }
 
@@ -813,9 +819,36 @@ const MatriculaAlumno = () => {
                 Cargue su documento en formato PDF o tome fotos para generarlo.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6 py-6">
+            <CardContent className="space-y-5 py-4">
               
-              <div className="flex gap-2 justify-center mb-4">
+              {/* ALERTA OBLIGATORIA DEL DOCUMENTO */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 text-left shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-500 text-white rounded-xl flex-shrink-0 mt-0.5 shadow-sm">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-amber-950 text-xs uppercase tracking-wider">¡Instrucción Obligatoria!</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowDocInstructions(true)}
+                        className="text-[11px] font-bold text-amber-800 underline hover:text-amber-950"
+                      >
+                        Ver guía visual
+                      </button>
+                    </div>
+                    <p className="text-xs font-bold text-amber-950 leading-snug">
+                      "Adjunta tu documento en PDF o toma la foto por ambas caras, recuerda recortar los bordes y dejarlo de frente"
+                    </p>
+                    <p className="text-[11px] text-amber-900 leading-normal">
+                      No se aceptan fotos con fondo de mesa, sábanas o bordes sobrantes. El documento debe quedar recortado al ras de sus 4 esquinas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-center mb-2">
                 <Button 
                   variant={uploadMode === 'pdf' ? 'default' : 'outline'} 
                   size="sm" 
@@ -989,9 +1022,36 @@ const MatriculaAlumno = () => {
                 Por ser una recategorización, cargue su licencia actual en PDF o tome fotos.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6 py-6">
+            <CardContent className="space-y-5 py-4">
               
-              <div className="flex gap-2 justify-center mb-4">
+              {/* ALERTA OBLIGATORIA DEL DOCUMENTO */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 text-left shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-500 text-white rounded-xl flex-shrink-0 mt-0.5 shadow-sm">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-amber-950 text-xs uppercase tracking-wider">¡Instrucción Obligatoria!</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowDocInstructions(true)}
+                        className="text-[11px] font-bold text-amber-800 underline hover:text-amber-950"
+                      >
+                        Ver guía visual
+                      </button>
+                    </div>
+                    <p className="text-xs font-bold text-amber-950 leading-snug">
+                      "Adjunta tu documento en PDF o toma la foto por ambas caras, recuerda recortar los bordes y dejarlo de frente"
+                    </p>
+                    <p className="text-[11px] text-amber-900 leading-normal">
+                      No se aceptan fotos con fondo de mesa o bordes sobrantes. El documento debe quedar recortado al ras de sus 4 esquinas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-center mb-2">
                 <Button 
                   variant={licenciaUploadMode === 'pdf' ? 'default' : 'outline'} 
                   size="sm" 
@@ -1327,6 +1387,66 @@ const MatriculaAlumno = () => {
           onClose={() => setCropModalOpen(false)}
           onComplete={handleCropCompleteAction}
         />
+      )}
+
+      {showDocInstructions && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <Card className="max-w-md w-full shadow-2xl rounded-2xl border-2 border-amber-400 overflow-hidden bg-card">
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-3.5 flex items-center gap-2.5 font-bold text-base shadow-sm">
+              <AlertTriangle className="w-6 h-6 text-white animate-pulse" />
+              <span>Instrucciones Obligatorias del Documento</span>
+            </div>
+            <CardContent className="space-y-4 p-5 text-center">
+              
+              {/* Frase solicitada por el usuario */}
+              <div className="bg-amber-50 border-2 border-amber-300 p-4 rounded-2xl text-left shadow-sm">
+                <p className="text-xs font-black text-amber-800 uppercase tracking-wide mb-1">Por favor ten en cuenta:</p>
+                <p className="text-sm font-extrabold text-amber-950 leading-snug">
+                  "Adjunta tu documento en PDF o toma la foto por ambas caras, recuerda recortar los bordes y dejarlo de frente"
+                </p>
+              </div>
+
+              {/* Guía visual / Explicación */}
+              <div className="grid grid-cols-2 gap-3 text-left">
+                <div className="bg-rose-50/90 border border-rose-200 rounded-xl p-3 text-xs">
+                  <div className="flex items-center gap-1 font-bold text-rose-700 mb-1.5">
+                    <span>❌ RECHAZADO</span>
+                  </div>
+                  <ul className="text-[11px] text-rose-900 space-y-1.5 leading-tight">
+                    <li>• Fotos con mesa, cama o fondo alrededor.</li>
+                    <li>• Bordes sobrantes o fotos inclinadas.</li>
+                    <li>• Dedos sobre el documento o reflejos.</li>
+                  </ul>
+                </div>
+
+                <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-3 text-xs">
+                  <div className="flex items-center gap-1 font-bold text-emerald-700 mb-1.5">
+                    <span>✅ ACEPTADO</span>
+                  </div>
+                  <ul className="text-[11px] text-emerald-900 space-y-1.5 leading-tight">
+                    <li>• Foto tomada totalmente de frente.</li>
+                    <li>• Recortada al ras de las 4 esquinas.</li>
+                    <li>• Letras, números y foto 100% legibles.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="bg-muted/70 p-3 rounded-xl text-xs text-muted-foreground text-left">
+                <p className="font-semibold text-foreground mb-0.5">📸 ¿Vas a tomar fotos con el celular?</p>
+                <p className="text-[11px] leading-relaxed">
+                  Al tomar la foto, nuestro escáner te mostrará <strong>4 puntos de ajuste</strong>. Arrástralos exactamente a las 4 esquinas de tu cédula para eliminar la mesa y dejar únicamente el documento.
+                </p>
+              </div>
+
+              <Button 
+                onClick={() => setShowDocInstructions(false)} 
+                className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl shadow-md uppercase tracking-wide"
+              >
+                ¡Entendido! Proceder a Cargar
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {showPhotoInstructions && (

@@ -55,7 +55,7 @@ export const exportEnrollmentBackupToExcel = async () => {
     return {
       'No.': index + 1,
       'Código Único': sol.codigo_unico || '',
-      'Estado': sol.estado === 'Solicitud enviada' ? 'Recibida' : (sol.estado || ''),
+      'Estado': sol.estado === 'Solicitud enviada' ? 'Pendiente por diligenciar' : (sol.estado || ''),
       'Fecha Creación': sol.created_at ? new Date(sol.created_at).toLocaleDateString('es-CO') : '',
       'Categoría': sol.categoria || alumno?.categoria || '',
       

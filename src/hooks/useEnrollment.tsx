@@ -210,15 +210,22 @@ export const useEnrollment = () => {
       const hasCedula = docTypes.includes('cedula_pdf');
       const hasHabeas = docTypes.includes('habeas_data');
       const hasFicha = docTypes.includes('ficha_matricula');
+      const hasStudentDocs = hasFoto && hasCedula && hasHabeas && hasFicha;
       
-      const hasAll = hasFoto && hasCedula && hasHabeas && hasFicha && 
-                     (docTypes.includes('pago_pin') || uploadedDocs.includes('pago_pin')) && 
-                     (docTypes.includes('pago_teoria') || uploadedDocs.includes('pago_teoria'));
+      const hasPayments = (docTypes.includes('pago_pin') || uploadedDocs.includes('pago_pin')) && 
+                          (docTypes.includes('pago_teoria') || uploadedDocs.includes('pago_teoria'));
+
+      let nuevoEstado: Solicitud['estado'] = 'Solicitud enviada';
+      if (hasStudentDocs && hasPayments) {
+        nuevoEstado = 'Completo';
+      } else if (hasStudentDocs) {
+        nuevoEstado = 'Pendiente pagos instructor';
+      }
 
       // Actualizar estado de solicitud
       const { error: stateError } = await supabase
         .from('solicitudes')
-        .update({ estado: hasAll ? 'Completo' : 'Pendiente pagos instructor' })
+        .update({ estado: nuevoEstado })
         .eq('id', solicitudId);
 
       if (stateError) throw stateError;
