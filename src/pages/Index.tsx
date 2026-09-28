@@ -2,15 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEnrollment } from '@/hooks/useEnrollment';
-import { CATEGORIAS_LICENCIA, TIPOS_DOCUMENTO, type Solicitud } from '@/types/enrollment';
+import { CATEGORIAS_LICENCIA, type Solicitud } from '@/types/enrollment';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Car, LogOut, Plus, Search, Mail, Phone, Calendar, 
   CheckCircle, Clock, AlertCircle, FileText, Send, 
   Share2, Copy, Settings, ArrowLeft, Loader2, Upload, FileCheck, Trash2,
-  FileSpreadsheet, Download, RotateCw
+  GraduationCap, CheckCircle2
 } from 'lucide-react';
-import { exportEnrollmentBackupToExcel } from '@/lib/excelExport';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -43,9 +42,8 @@ const Index = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newNombres, setNewNombres] = useState('');
   const [newApellidos, setNewApellidos] = useState('');
-  const [newTipoDocumento, setNewTipoDocumento] = useState('CC');
-  const [newNumeroDocumento, setNewNumeroDocumento] = useState('');
   const [newCelular, setNewCelular] = useState('');
+  const [newCorreo, setNewCorreo] = useState('');
   const [newCategoria, setNewCategoria] = useState('B1');
   const [generatedLink, setGeneratedLink] = useState('');
   const [justCreated, setJustCreated] = useState<Solicitud | null>(null);
@@ -66,7 +64,6 @@ const Index = () => {
   const [asuntoTemplate, setAsuntoTemplate] = useState('');
   const [mensajeTemplate, setMensajeTemplate] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Seguridad Ágil
   const [isAgileLocked, setIsAgileLocked] = useState(localStorage.getItem('agile_auth') !== 'true');
@@ -85,28 +82,10 @@ const Index = () => {
     }
   };
 
-  // Cargar datos al inicio y suscribirse a cambios en tiempo real
+  // Cargar datos al inicio
   useEffect(() => {
     if (!isAgileLocked) {
       loadData();
-
-      // Suscribirse a cambios en tiempo real en la base de datos
-      const channel = supabase
-        .channel('solicitudes-realtime-channel')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => {
-          loadData();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos' }, () => {
-          loadData();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'alumnos' }, () => {
-          loadData();
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
   }, [isAgileLocked]);
 
@@ -239,29 +218,6 @@ const Index = () => {
     }
   };
 
-  const handleExportExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      toast({
-        title: 'Generando respaldo Excel...',
-        description: 'Recopilando datos y enlaces de documentos...'
-      });
-      const result = await exportEnrollmentBackupToExcel();
-      toast({
-        title: 'Respaldo generado con éxito',
-        description: `Se descargó el archivo ${result.fileName} con ${result.count} alumnos.`
-      });
-    } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error al generar Excel',
-        description: err.message
-      });
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
-
   const handleDeleteSolicitud = async (id: string, nombre: string) => {
     if (window.confirm(`¿Está seguro que desea eliminar a ${nombre} y todos sus documentos de forma permanente?`)) {
       try {
@@ -286,7 +242,7 @@ const Index = () => {
 
   const handleCreateSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNombres || !newApellidos || !newCelular || !newNumeroDocumento) {
+    if (!newNombres || !newApellidos || !newCelular || !newCorreo) {
       toast({
         variant: 'destructive',
         title: 'Campos incompletos',
@@ -297,15 +253,7 @@ const Index = () => {
 
     try {
       const fullName = `${newNombres.trim()}  ${newApellidos.trim()}`;
-      const solicitud = await createSolicitud(
-        fullName,
-        newCelular.trim(),
-        newCategoria,
-        newTipoDocumento,
-        newNumeroDocumento.trim(),
-        newNombres.trim(),
-        newApellidos.trim()
-      );
+      const solicitud = await createSolicitud(fullName, newCorreo, newCelular, newCategoria);
       const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
       const link = `${baseUrl}#/matricula/${solicitud.codigo_unico}`;
       setGeneratedLink(link);
@@ -319,9 +267,8 @@ const Index = () => {
       // Limpiar y recargar
       setNewNombres('');
       setNewApellidos('');
-      setNewTipoDocumento('CC');
-      setNewNumeroDocumento('');
       setNewCelular('');
+      setNewCorreo('');
       loadData();
     } catch (err: any) {
       toast({
@@ -343,32 +290,6 @@ const Index = () => {
     try {
       const details = await getAlumnoDetails(solicitud.id);
       setAlumnoDetails(details);
-
-      // Evaluar documentos reales y sincronizar estado
-      const docs = details?.documentos || [];
-      const docTypes = docs.map((d: any) => d.tipo);
-      const hasStudentDocs = docTypes.includes('ficha_matricula') && 
-                             docTypes.includes('habeas_data') &&
-                             docTypes.includes('foto') &&
-                             docTypes.includes('cedula_pdf');
-      const hasPayments = docTypes.includes('pago_pin') && docTypes.includes('pago_teoria');
-
-      if (solicitud.estado !== 'Enviado a academia') {
-        let expectedEstado: Solicitud['estado'] = 'Solicitud enviada';
-        if (hasStudentDocs && hasPayments) {
-          expectedEstado = 'Completo';
-        } else if (hasStudentDocs) {
-          expectedEstado = 'Pendiente pagos instructor';
-        } else {
-          expectedEstado = solicitud.estado === 'Alumno diligenciando' ? 'Alumno diligenciando' : 'Solicitud enviada';
-        }
-
-        if (solicitud.estado !== expectedEstado) {
-          await updateSolicitudEstado(solicitud.id, expectedEstado);
-          setSelectedSolicitud((prev) => (prev ? { ...prev, estado: expectedEstado } : null));
-          loadData();
-        }
-      }
     } catch (err: any) {
       toast({
         variant: 'destructive',
@@ -376,10 +297,6 @@ const Index = () => {
         description: err.message
       });
     }
-  };
-
-  const handleCloseSheet = () => {
-    setSelectedSolicitud(null);
   };
 
   const handleUploadPayments = async () => {
@@ -450,6 +367,29 @@ const Index = () => {
     }
   };
 
+  const handleMarkProcesoFinalizado = async (solicitudId: string, nuevoEstado: Solicitud['estado']) => {
+    try {
+      await updateSolicitudEstado(solicitudId, nuevoEstado);
+      toast({
+        title: 'Estado actualizado',
+        description: `El expediente ha sido marcado como "${nuevoEstado}".`
+      });
+      if (selectedSolicitud && selectedSolicitud.id === solicitudId) {
+        setSelectedSolicitud({
+          ...selectedSolicitud,
+          estado: nuevoEstado
+        });
+      }
+      loadData();
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error al cambiar estado',
+        description: err.message
+      });
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -473,17 +413,18 @@ const Index = () => {
       (sol.alumnos && sol.alumnos.length > 0 && sol.alumnos[0].numero_documento.includes(searchTerm));
 
     if (activeTab === 'todos') return matchesSearch;
-    if (activeTab === 'pendientes') return matchesSearch && (sol.estado === 'Solicitud enviada' || sol.estado === 'Alumno diligenciando');
-    if (activeTab === 'pendientes_pago') return matchesSearch && sol.estado === 'Pendiente pagos instructor';
-    if (activeTab === 'completas') return matchesSearch && sol.estado === 'Completo';
+    if (activeTab === 'finalizados') return matchesSearch && sol.estado === 'Proceso finalizado';
     if (activeTab === 'enviadas') return matchesSearch && sol.estado === 'Enviado a academia';
+    if (activeTab === 'completas') return matchesSearch && sol.estado === 'Completo';
+    if (activeTab === 'pendientes_pago') return matchesSearch && sol.estado === 'Pendiente pagos instructor';
+    if (activeTab === 'diligenciando') return matchesSearch && sol.estado === 'Alumno diligenciando';
+    if (activeTab === 'solicitadas') return matchesSearch && sol.estado === 'Solicitud enviada';
 
     return matchesSearch;
   });
 
   // Conteo de estados
   const countState = (state: string) => solicitudes.filter(s => s.estado === state).length;
-  const countPendientes = solicitudes.filter(s => s.estado === 'Solicitud enviada' || s.estado === 'Alumno diligenciando').length;
 
   if (authLoading) {
     return (
@@ -508,34 +449,6 @@ const Index = () => {
             <span className="font-display font-bold text-lg">Driving Enrolamiento</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                loadData();
-                toast({ title: 'Actualizado', description: 'Listado sincronizado correctamente.' });
-              }} 
-              className="gap-1.5 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-50"
-              title="Refrescar listado"
-            >
-              <RotateCw className="w-4 h-4 text-slate-600" />
-              <span className="hidden sm:inline">Refrescar</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleExportExcel} 
-              disabled={isExportingExcel} 
-              className="gap-1.5 rounded-xl border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-              title="Descargar copia de respaldo en Excel con enlaces a documentos"
-            >
-              {isExportingExcel ? (
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-              ) : (
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              )}
-              <span>Excel</span>
-            </Button>
             <Button variant="outline" size="sm" onClick={handleOpenConfig} className="hidden sm:flex gap-2 rounded-xl">
               <Settings className="w-4 h-4" /> Configuración
             </Button>
@@ -548,6 +461,41 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container max-w-lg mx-auto px-4 mt-6">
+        
+        {/* Estadísticas rápidas scrollable horizontal */}
+        <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+          <Card className="flex-shrink-0 w-32 border-l-4 border-l-blue-500 bg-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground font-medium">Solicitadas</p>
+              <p className="text-2xl font-bold mt-1">{countState('Solicitud enviada') + countState('Alumno diligenciando')}</p>
+            </CardContent>
+          </Card>
+          <Card className="flex-shrink-0 w-32 border-l-4 border-l-amber-500 bg-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground font-medium">Falta Pago</p>
+              <p className="text-2xl font-bold mt-1 text-amber-600">{countState('Pendiente pagos instructor')}</p>
+            </CardContent>
+          </Card>
+          <Card className="flex-shrink-0 w-32 border-l-4 border-l-green-500 bg-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground font-medium">Completas</p>
+              <p className="text-2xl font-bold mt-1 text-green-600">{countState('Completo')}</p>
+            </CardContent>
+          </Card>
+          <Card className="flex-shrink-0 w-32 border-l-4 border-l-slate-400 bg-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground font-medium">Enviadas</p>
+              <p className="text-2xl font-bold mt-1 text-slate-500">{countState('Enviado a academia')}</p>
+            </CardContent>
+          </Card>
+          <Card className="flex-shrink-0 w-32 border-l-4 border-l-emerald-500 bg-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground font-medium">Finalizados</p>
+              <p className="text-2xl font-bold mt-1 text-emerald-600">{countState('Proceso finalizado')}</p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Buscador */}
         <div className="relative mt-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -569,14 +517,6 @@ const Index = () => {
             className="rounded-full flex-shrink-0"
           >
             Todos
-          </Button>
-          <Button 
-            variant={activeTab === 'pendientes' ? 'default' : 'secondary'} 
-            size="sm"
-            onClick={() => setActiveTab('pendientes')}
-            className="rounded-full flex-shrink-0"
-          >
-            Pendientes ({countPendientes})
           </Button>
           <Button 
             variant={activeTab === 'pendientes_pago' ? 'default' : 'secondary'} 
@@ -601,6 +541,14 @@ const Index = () => {
             className="rounded-full flex-shrink-0"
           >
             Enviadas ({countState('Enviado a academia')})
+          </Button>
+          <Button 
+            variant={activeTab === 'finalizados' ? 'default' : 'secondary'} 
+            size="sm"
+            onClick={() => setActiveTab('finalizados')}
+            className="rounded-full flex-shrink-0"
+          >
+            Finalizados ({countState('Proceso finalizado')})
           </Button>
         </div>
 
@@ -635,19 +583,22 @@ const Index = () => {
                   <div className="flex items-center gap-3">
                     <div>
                       {sol.estado === 'Solicitud enviada' && (
-                        <Badge variant="secondary" className="bg-amber-50/90 text-amber-800 hover:bg-amber-50/90 border-amber-200">Pendiente por diligenciar</Badge>
+                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">Enviada</Badge>
                       )}
                       {sol.estado === 'Alumno diligenciando' && (
                         <Badge variant="secondary" className="bg-sky-50 text-sky-700 hover:bg-sky-50 border-sky-200">Diligenciando</Badge>
                       )}
                       {sol.estado === 'Pendiente pagos instructor' && (
-                        <Badge variant="secondary" className="bg-amber-100 text-amber-900 hover:bg-amber-100 border-amber-300 animate-pulse font-medium">Falta Pago</Badge>
+                        <Badge variant="secondary" className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200 animate-pulse">Falta Pago</Badge>
                       )}
                       {sol.estado === 'Completo' && (
-                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200 font-medium">Completa</Badge>
+                        <Badge variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-50 border-green-200">Completa</Badge>
                       )}
                       {sol.estado === 'Enviado a academia' && (
                         <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-100 border-slate-300">Enviado</Badge>
+                      )}
+                      {sol.estado === 'Proceso finalizado' && (
+                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200">Proceso Finalizado</Badge>
                       )}
                     </div>
                     <Button 
@@ -726,34 +677,6 @@ const Index = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="newTipoDocumento">Tipo de Documento</Label>
-                  <select 
-                    id="newTipoDocumento"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={newTipoDocumento} 
-                    onChange={(e) => setNewTipoDocumento(e.target.value)}
-                  >
-                    {TIPOS_DOCUMENTO.map((doc) => (
-                      <option key={doc.value} value={doc.value}>
-                        {doc.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="newNumeroDocumento">Número de Documento</Label>
-                  <Input 
-                    id="newNumeroDocumento" 
-                    type="text"
-                    value={newNumeroDocumento} 
-                    onChange={(e) => setNewNumeroDocumento(e.target.value)} 
-                    placeholder="Ej. 1020304050"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
                   <Label htmlFor="newCelular">Celular</Label>
                   <Input 
                     id="newCelular" 
@@ -778,6 +701,16 @@ const Index = () => {
                     ))}
                   </select>
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="newCorreo">Correo Electrónico</Label>
+                <Input 
+                  id="newCorreo" 
+                  type="email"
+                  value={newCorreo} 
+                  onChange={(e) => setNewCorreo(e.target.value)} 
+                  required
+                />
               </div>
 
               <DialogFooter className="pt-2">
@@ -827,7 +760,7 @@ const Index = () => {
       </Dialog>
 
       {/* SHEET: Detalle de Matrícula (Revisión y pagos) */}
-      <Sheet open={!!selectedSolicitud} onOpenChange={(open) => { if (!open) handleCloseSheet(); }}>
+      <Sheet open={!!selectedSolicitud} onOpenChange={() => setSelectedSolicitud(null)}>
         <SheetContent side="right" className="w-[92%] sm:max-w-md overflow-y-auto px-4 pb-8">
           <SheetHeader className="pb-4 border-b">
             <SheetTitle className="text-lg">Revisar Matrícula</SheetTitle>
@@ -841,28 +774,19 @@ const Index = () => {
               
               {/* Resumen del Alumno */}
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-foreground">Estudiante</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-foreground">Estudiante</h3>
+                  {selectedSolicitud.estado === 'Proceso finalizado' && (
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold text-[10px]">
+                      ✓ Proceso Finalizado
+                    </Badge>
+                  )}
+                </div>
                 <div className="bg-muted/40 p-3 rounded-lg space-y-1 text-xs">
                   <p className="font-semibold text-foreground text-sm">{selectedSolicitud.nombre_alumno}</p>
-                  {(alumnoDetails?.alumno?.numero_documento || (selectedSolicitud.alumnos && selectedSolicitud.alumnos[0]?.numero_documento)) && (
-                    <p className="text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
-                      <span className="bg-primary/10 text-primary px-1.5 py-0.2 rounded font-mono text-[11px]">
-                        {alumnoDetails?.alumno?.tipo_documento || selectedSolicitud.alumnos?.[0]?.tipo_documento || 'CC'}
-                      </span>
-                      {alumnoDetails?.alumno?.numero_documento || selectedSolicitud.alumnos?.[0]?.numero_documento}
-                    </p>
-                  )}
-                  {(alumnoDetails?.alumno?.email_1 || selectedSolicitud.email) && (
-                    <p className="flex items-center gap-1.5 text-muted-foreground mt-1">
-                      <Mail className="w-3.5 h-3.5" /> {alumnoDetails?.alumno?.email_1 || selectedSolicitud.email}
-                    </p>
-                  )}
-                  <p className="flex items-center gap-1.5 text-muted-foreground">
-                    <Phone className="w-3.5 h-3.5" /> {selectedSolicitud.celular}
-                  </p>
-                  <p className="mt-1">
-                    Categoría: <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{selectedSolicitud.categoria}</Badge>
-                  </p>
+                  <p className="flex items-center gap-1.5 text-muted-foreground mt-1"><Mail className="w-3.5 h-3.5" /> {selectedSolicitud.email}</p>
+                  <p className="flex items-center gap-1.5 text-muted-foreground"><Phone className="w-3.5 h-3.5" /> {selectedSolicitud.celular}</p>
+                  <p className="mt-1">Categoría: <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{selectedSolicitud.categoria}</Badge></p>
                 </div>
               </div>
 
@@ -1023,33 +947,66 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Botón de Enviar Expediente */}
+              {/* Botón de Enviar Expediente y Proceso Finalizado */}
               {alumnoDetails && (
-                <div className="border-t pt-4 space-y-2">
-                  {selectedSolicitud.estado === 'Completo' ? (
-                    <Button 
-                      onClick={handleSendEmail} 
-                      className="w-full py-5 text-sm rounded-xl font-bold flex items-center justify-center gap-1.5 shadow"
-                      disabled={enrollmentLoading}
-                    >
-                      {enrollmentLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4" />}
-                      ENVIAR EXPEDIENTE A ACADEMIA
-                    </Button>
-                  ) : selectedSolicitud.estado === 'Enviado a academia' ? (
-                    <Button 
-                      variant="outline"
-                      onClick={handleSendEmail} 
-                      className="w-full py-5 text-sm rounded-xl font-semibold border-primary text-primary flex items-center justify-center gap-1.5"
-                      disabled={enrollmentLoading}
-                    >
-                      {enrollmentLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4" />}
-                      REENVIAR EXPEDIENTE
-                    </Button>
-                  ) : (
-                    <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-lg flex items-start gap-1.5">
-                      <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <span>El checklist de documentos no está completo. El alumno debe finalizar su registro y el instructor cargar los soportes de pago antes de enviar a la academia.</span>
+                <div className="border-t pt-4 space-y-3">
+                  {selectedSolicitud.estado === 'Proceso finalizado' ? (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs p-3 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                        <div>
+                          <p className="font-bold text-emerald-900">Proceso Finalizado</p>
+                          <p className="text-[10px] text-emerald-700">El alumno ya concluyó su proceso en la academia.</p>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-8 border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+                        onClick={() => handleMarkProcesoFinalizado(selectedSolicitud.id, 'Enviado a academia')}
+                      >
+                        Reabrir
+                      </Button>
                     </div>
+                  ) : (
+                    <>
+                      {selectedSolicitud.estado === 'Completo' ? (
+                        <Button 
+                          onClick={handleSendEmail} 
+                          className="w-full py-5 text-sm rounded-xl font-bold flex items-center justify-center gap-1.5 shadow"
+                          disabled={enrollmentLoading}
+                        >
+                          {enrollmentLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4" />}
+                          ENVIAR EXPEDIENTE A ACADEMIA
+                        </Button>
+                      ) : selectedSolicitud.estado === 'Enviado a academia' ? (
+                        <Button 
+                          variant="outline"
+                          onClick={handleSendEmail} 
+                          className="w-full py-5 text-sm rounded-xl font-semibold border-primary text-primary flex items-center justify-center gap-1.5"
+                          disabled={enrollmentLoading}
+                        >
+                          {enrollmentLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4" />}
+                          REENVIAR EXPEDIENTE
+                        </Button>
+                      ) : (
+                        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-lg flex items-start gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <span>El checklist de documentos no está completo. El alumno debe finalizar su registro y el instructor cargar los soportes de pago antes de enviar a la academia.</span>
+                        </div>
+                      )}
+
+                      {/* Opción de Marcar como Proceso Finalizado */}
+                      <Button 
+                        variant="outline"
+                        onClick={() => handleMarkProcesoFinalizado(selectedSolicitud.id, 'Proceso finalizado')}
+                        className="w-full py-4 text-xs rounded-xl font-semibold border-emerald-600 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center gap-1.5 shadow-sm"
+                        disabled={enrollmentLoading}
+                      >
+                        <GraduationCap className="w-4 h-4 text-emerald-600" />
+                        MARCAR COMO PROCESO FINALIZADO
+                      </Button>
+                    </>
                   )}
                 </div>
               )}
@@ -1058,7 +1015,7 @@ const Index = () => {
           )}
 
           <SheetFooter className="mt-6 border-t pt-4">
-            <Button variant="ghost" onClick={handleCloseSheet} className="w-full">Cerrar</Button>
+            <Button variant="ghost" onClick={() => setSelectedSolicitud(null)} className="w-full">Cerrar</Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
@@ -1108,20 +1065,10 @@ const Index = () => {
                 value={mensajeTemplate} 
                 onChange={(e) => setMensajeTemplate(e.target.value)} 
                 placeholder="Cordial saludo..."
-                rows={4}
+                rows={5}
                 className="resize-none text-xs"
               />
               <span className="text-[9px] text-muted-foreground block">Keywords: {"{NombreAlumno}"}, {"{TipoDocumento}"}, {"{NumeroDocumento}"}, {"{Categoria}"}</span>
-            </div>
-
-            {/* Sincronización Automática con Google Sheets */}
-            <div className="border-t pt-3 space-y-1.5">
-              <Label className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                <FileSpreadsheet className="w-4 h-4" /> Sincronización Automática con Google Sheets
-              </Label>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Para tener tu Google Sheet en Google Drive sincronizado automáticamente con la base de datos de Supabase, utiliza el script en <strong>Extensiones &gt; Apps Script</strong>.
-              </p>
             </div>
           </div>
 

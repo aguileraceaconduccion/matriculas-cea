@@ -45,7 +45,7 @@ export interface Database {
           email: string
           celular: string
           categoria: string
-          estado: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Aprobado' | 'Rechazado'
+          estado: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Proceso finalizado' | 'Aprobado' | 'Rechazado'
           created_at: string
         }
         Insert: {
@@ -55,7 +55,7 @@ export interface Database {
           email: string
           celular: string
           categoria: string
-          estado?: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Aprobado' | 'Rechazado'
+          estado?: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Proceso finalizado' | 'Aprobado' | 'Rechazado'
           created_at?: string
         }
         Update: {
@@ -65,7 +65,7 @@ export interface Database {
           email?: string
           celular?: string
           categoria?: string
-          estado?: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Aprobado' | 'Rechazado'
+          estado?: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Proceso finalizado' | 'Aprobado' | 'Rechazado'
           created_at?: string
         }
         Relationships: []

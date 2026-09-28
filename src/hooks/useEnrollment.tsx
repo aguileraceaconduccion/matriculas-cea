@@ -14,49 +14,11 @@ export const useEnrollment = () => {
     try {
       const { data, error } = await supabase
         .from('solicitudes')
-        .select('*, alumnos(id, tipo_documento, numero_documento, documentos(tipo))')
+        .select('*, alumnos(tipo_documento, numero_documento)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-
-      const processedSolicitudes = (data || []).map((sol: any) => {
-        const allDocs = sol.alumnos?.flatMap((a: any) => a.documentos || []) || [];
-        const docTypes = allDocs.map((d: any) => d.tipo);
-
-        const hasStudentDocs = docTypes.includes('ficha_matricula') && 
-                               docTypes.includes('habeas_data') &&
-                               docTypes.includes('foto') &&
-                               docTypes.includes('cedula_pdf');
-        const hasPayments = docTypes.includes('pago_pin') && docTypes.includes('pago_teoria');
-
-        let computedEstado: Solicitud['estado'] = sol.estado;
-
-        if (sol.estado !== 'Enviado a academia') {
-          if (hasStudentDocs && hasPayments) {
-            computedEstado = 'Completo';
-          } else if (hasStudentDocs) {
-            computedEstado = 'Pendiente pagos instructor';
-          } else {
-            computedEstado = sol.estado === 'Alumno diligenciando' ? 'Alumno diligenciando' : 'Solicitud enviada';
-          }
-
-          // Si el estado en DB está desfasado con los documentos reales, actualizarlo en la base de datos
-          if (sol.estado !== computedEstado) {
-            supabase
-              .from('solicitudes')
-              .update({ estado: computedEstado })
-              .eq('id', sol.id)
-              .then();
-          }
-        }
-
-        return {
-          ...sol,
-          estado: computedEstado
-        };
-      });
-
-      return processedSolicitudes as Solicitud[];
+      return data as Solicitud[];
     } catch (err) {
       console.error('Error al obtener solicitudes:', err);
       throw err;
@@ -68,24 +30,21 @@ export const useEnrollment = () => {
   // Crear una nueva solicitud de matrícula
   const createSolicitud = async (
     nombre_alumno: string,
+    email: string,
     celular: string,
-    categoria: string,
-    tipo_documento?: string,
-    numero_documento?: string,
-    nombres?: string,
-    apellidos?: string
+    categoria: string
   ) => {
     setLoading(true);
     try {
       // Generar código único aleatorio de 8 caracteres
       const codigo_unico = Math.random().toString(36).substring(2, 10).toUpperCase();
       
-      const { data: solData, error: solError } = await supabase
+      const { data, error } = await supabase
         .from('solicitudes')
         .insert({
           codigo_unico,
           nombre_alumno,
-          email: '',
+          email,
           celular,
           categoria,
           estado: 'Solicitud enviada'
@@ -93,28 +52,8 @@ export const useEnrollment = () => {
         .select()
         .single();
 
-      if (solError) throw solError;
-
-      // Si se proporcionó documento, crear registro inicial en alumnos
-      if (tipo_documento && numero_documento) {
-        const { error: alumnoErr } = await supabase
-          .from('alumnos')
-          .insert({
-            solicitud_id: solData.id,
-            categoria,
-            tipo_documento,
-            numero_documento,
-            nombres: nombres || nombre_alumno,
-            apellidos: apellidos || '',
-            celular
-          });
-
-        if (alumnoErr) {
-          console.warn('Advertencia al insertar alumno inicial:', alumnoErr);
-        }
-      }
-
-      return solData as Solicitud;
+      if (error) throw error;
+      return data as Solicitud;
     } catch (err) {
       console.error('Error al crear solicitud:', err);
       throw err;
@@ -248,22 +187,15 @@ export const useEnrollment = () => {
       const hasCedula = docTypes.includes('cedula_pdf');
       const hasHabeas = docTypes.includes('habeas_data');
       const hasFicha = docTypes.includes('ficha_matricula');
-      const hasStudentDocs = hasFoto && hasCedula && hasHabeas && hasFicha;
       
-      const hasPayments = (docTypes.includes('pago_pin') || uploadedDocs.includes('pago_pin')) && 
-                          (docTypes.includes('pago_teoria') || uploadedDocs.includes('pago_teoria'));
-
-      let nuevoEstado: Solicitud['estado'] = 'Solicitud enviada';
-      if (hasStudentDocs && hasPayments) {
-        nuevoEstado = 'Completo';
-      } else if (hasStudentDocs) {
-        nuevoEstado = 'Pendiente pagos instructor';
-      }
+      const hasAll = hasFoto && hasCedula && hasHabeas && hasFicha && 
+                     (docTypes.includes('pago_pin') || uploadedDocs.includes('pago_pin')) && 
+                     (docTypes.includes('pago_teoria') || uploadedDocs.includes('pago_teoria'));
 
       // Actualizar estado de solicitud
       const { error: stateError } = await supabase
         .from('solicitudes')
-        .update({ estado: nuevoEstado })
+        .update({ estado: hasAll ? 'Completo' : 'Pendiente pagos instructor' })
         .eq('id', solicitudId);
 
       if (stateError) throw stateError;
@@ -285,12 +217,12 @@ export const useEnrollment = () => {
     try {
       const { data, error } = await supabase
         .from('solicitudes')
-        .select('*, alumnos(*)')
+        .select('*')
         .eq('codigo_unico', token)
         .maybeSingle();
 
       if (error) throw error;
-      return data as (Solicitud & { alumnos?: any[] }) | null;
+      return data as Solicitud | null;
     } catch (err) {
       console.error('Error al buscar solicitud por token:', err);
       throw err;
@@ -301,14 +233,19 @@ export const useEnrollment = () => {
 
   // Actualizar estado de solicitud
   const updateSolicitudEstado = async (id: string, estado: Solicitud['estado']) => {
+    setLoading(true);
     try {
       const { error } = await supabase
         .from('solicitudes')
         .update({ estado })
         .eq('id', id);
       if (error) throw error;
+      return { success: true };
     } catch (err) {
       console.error('Error al actualizar estado:', err);
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -333,86 +270,40 @@ export const useEnrollment = () => {
         // Ignorar
       }
 
-      // 1. Verificar si ya existe registro en alumnos para esta solicitud
-      const { data: existingAlumno } = await supabase
+      // 1. Insertar registro en alumnos
+      const { data: newAlumno, error: insertAlumnoErr } = await supabase
         .from('alumnos')
-        .select('id')
-        .eq('solicitud_id', solicitud.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .insert({
+          solicitud_id: solicitud.id,
+          categoria: alumnoData.categoria,
+          fecha_ingreso: alumnoData.fecha_ingreso,
+          tipo_documento: alumnoData.tipo_documento,
+          numero_documento: alumnoData.numero_documento,
+          nombres: alumnoData.nombres,
+          apellidos: alumnoData.apellidos,
+          genero: alumnoData.genero,
+          estado_civil: alumnoData.estado_civil,
+          fecha_nacimiento: alumnoData.fecha_nacimiento,
+          lugar_origen: alumnoData.lugar_origen,
+          estrato: alumnoData.estrato,
+          eps: alumnoData.eps,
+          nivel_formacion: alumnoData.nivel_formacion,
+          ocupacion: alumnoData.ocupacion,
+          email_1: alumnoData.email_1,
+          email_2: alumnoData.email_2 || null,
+          celular: alumnoData.celular,
+          telefono_fijo: alumnoData.telefono_fijo || null,
+          direccion: alumnoData.direccion,
+          contacto_emergencia: alumnoData.contacto_emergencia,
+          celular_emergencia: alumnoData.celular_emergencia,
+          asesor: alumnoData.asesor,
+          es_menor_edad: alumnoData.es_menor_edad
+        })
+        .select()
+        .single();
 
-      let alumnoId: string;
-
-      if (existingAlumno?.id) {
-        const { data: updatedAlumno, error: updateErr } = await supabase
-          .from('alumnos')
-          .update({
-            categoria: alumnoData.categoria,
-            fecha_ingreso: alumnoData.fecha_ingreso,
-            tipo_documento: alumnoData.tipo_documento,
-            numero_documento: alumnoData.numero_documento,
-            nombres: alumnoData.nombres,
-            apellidos: alumnoData.apellidos,
-            genero: alumnoData.genero,
-            estado_civil: alumnoData.estado_civil,
-            fecha_nacimiento: alumnoData.fecha_nacimiento,
-            lugar_origen: alumnoData.lugar_origen,
-            estrato: alumnoData.estrato,
-            eps: alumnoData.eps,
-            nivel_formacion: alumnoData.nivel_formacion,
-            ocupacion: alumnoData.ocupacion,
-            email_1: alumnoData.email_1,
-            email_2: alumnoData.email_2 || null,
-            celular: alumnoData.celular,
-            telefono_fijo: alumnoData.telefono_fijo || null,
-            direccion: alumnoData.direccion,
-            contacto_emergencia: alumnoData.contacto_emergencia,
-            celular_emergencia: alumnoData.celular_emergencia,
-            asesor: alumnoData.asesor,
-            es_menor_edad: alumnoData.es_menor_edad
-          })
-          .eq('id', existingAlumno.id)
-          .select()
-          .single();
-
-        if (updateErr) throw updateErr;
-        alumnoId = updatedAlumno.id;
-      } else {
-        const { data: newAlumno, error: insertAlumnoErr } = await supabase
-          .from('alumnos')
-          .insert({
-            solicitud_id: solicitud.id,
-            categoria: alumnoData.categoria,
-            fecha_ingreso: alumnoData.fecha_ingreso,
-            tipo_documento: alumnoData.tipo_documento,
-            numero_documento: alumnoData.numero_documento,
-            nombres: alumnoData.nombres,
-            apellidos: alumnoData.apellidos,
-            genero: alumnoData.genero,
-            estado_civil: alumnoData.estado_civil,
-            fecha_nacimiento: alumnoData.fecha_nacimiento,
-            lugar_origen: alumnoData.lugar_origen,
-            estrato: alumnoData.estrato,
-            eps: alumnoData.eps,
-            nivel_formacion: alumnoData.nivel_formacion,
-            ocupacion: alumnoData.ocupacion,
-            email_1: alumnoData.email_1,
-            email_2: alumnoData.email_2 || null,
-            celular: alumnoData.celular,
-            telefono_fijo: alumnoData.telefono_fijo || null,
-            direccion: alumnoData.direccion,
-            contacto_emergencia: alumnoData.contacto_emergencia,
-            celular_emergencia: alumnoData.celular_emergencia,
-            asesor: alumnoData.asesor,
-            es_menor_edad: alumnoData.es_menor_edad
-          })
-          .select()
-          .single();
-
-        if (insertAlumnoErr) throw insertAlumnoErr;
-        alumnoId = newAlumno.id;
-      }
+      if (insertAlumnoErr) throw insertAlumnoErr;
+      const alumnoId = newAlumno.id;
 
       // 2. Si es menor de edad, cargar firma y datos de acudiente
       if (alumnoData.es_menor_edad && tutorSignatureUrl && alumnoData.acudiente_nombre) {
@@ -553,13 +444,10 @@ export const useEnrollment = () => {
       });
       if (dbFicErr) throw dbFicErr;
 
-      // 7. Actualizar el estado de la solicitud y el correo
+      // 7. Actualizar el estado de la solicitud
       const { error: updateSolErr } = await supabase
         .from('solicitudes')
-        .update({ 
-          estado: 'Pendiente pagos instructor',
-          email: alumnoData.email_1 
-        })
+        .update({ estado: 'Pendiente pagos instructor' })
         .eq('id', solicitud.id);
 
       if (updateSolErr) throw updateSolErr;

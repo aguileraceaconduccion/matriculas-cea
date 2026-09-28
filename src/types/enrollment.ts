@@ -36,7 +36,7 @@ export interface Solicitud {
   email: string;
   celular: string;
   categoria: string;
-  estado: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Aprobado' | 'Rechazado';
+  estado: 'Solicitud enviada' | 'Alumno diligenciando' | 'Pendiente pagos instructor' | 'Completo' | 'Enviado a academia' | 'Proceso finalizado' | 'Aprobado' | 'Rechazado';
   created_at: string;
   alumnos?: { tipo_documento: string; numero_documento: string }[];
 }

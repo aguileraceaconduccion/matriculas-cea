@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Buffer } from "node:buffer";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,9 +104,14 @@ serve(async (req: Request) => {
     const replaceVars = (text: string) => {
       return text
         .replace(/{NombreAlumno}/g, studentFullName)
+        .replace(/{nombres}/g, alumno.nombres || "")
+        .replace(/{apellidos}/g, alumno.apellidos || "")
         .replace(/{TipoDocumento}/g, alumno.tipo_documento || "CC")
+        .replace(/{tipo_documento}/g, alumno.tipo_documento || "CC")
         .replace(/{NumeroDocumento}/g, alumno.numero_documento || "")
-        .replace(/{Categoria}/g, alumno.categoria || "");
+        .replace(/{numero_documento}/g, alumno.numero_documento || "")
+        .replace(/{Categoria}/g, alumno.categoria || "")
+        .replace(/{categoria}/g, alumno.categoria || "");
     };
 
     const emailSubject = replaceVars(subjectTemplate);
@@ -113,42 +119,8 @@ serve(async (req: Request) => {
 
     // Build rich email HTML body
     const emailHtmlBody = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-        <div style="background: #1e3a8a; color: white; padding: 20px; border-radius: 10px 10px 0 0; text-align: center;">
-          <h1 style="margin: 0; font-size: 22px;">🚗 Expediente de Matrícula Digital</h1>
-        </div>
-        
-        <div style="border: 1px solid #e5e7eb; border-top: none; padding: 25px; border-radius: 0 0 10px 10px; background-color: #fafafa;">
-          <p style="white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #4b5563;">${emailTextBody}</p>
-
-          <h3 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 5px; margin-top: 25px;">Datos del Estudiante</h3>
-          <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-bottom: 15px;">
-            <tr style="background-color: #f3f4f6;"><td style="padding: 8px; font-weight: bold; width: 40%;">Nombre Completo:</td><td style="padding: 8px;">${studentFullName}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Documento:</td><td style="padding: 8px;">${alumno.tipo_documento} ${alumno.numero_documento}</td></tr>
-            <tr style="background-color: #f3f4f6;"><td style="padding: 8px; font-weight: bold;">Fecha Nacimiento:</td><td style="padding: 8px;">${alumno.fecha_nacimiento || "N/A"}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Celular:</td><td style="padding: 8px;">${alumno.celular}</td></tr>
-            <tr style="background-color: #f3f4f6;"><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${alumno.email_1}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Dirección:</td><td style="padding: 8px;">${alumno.direccion || "N/A"}</td></tr>
-            <tr style="background-color: #f3f4f6;"><td style="padding: 8px; font-weight: bold;">Categoría Solicitada:</td><td style="padding: 8px;"><span style="background-color: #1e3a8a; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${alumno.categoria}</span></td></tr>
-          </table>
-
-          ${
-            alumno.es_menor_edad && acudiente
-              ? `
-            <h3 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 5px; margin-top: 20px;">Datos del Acudiente</h3>
-            <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-bottom: 15px;">
-              <tr style="background-color: #fef3c7;"><td style="padding: 8px; font-weight: bold; width: 40%;">Nombre Acudiente:</td><td style="padding: 8px;">${acudiente.nombre}</td></tr>
-              <tr><td style="padding: 8px; font-weight: bold;">Cédula Acudiente:</td><td style="padding: 8px;">${acudiente.documento}</td></tr>
-              <tr style="background-color: #fef3c7;"><td style="padding: 8px; font-weight: bold;">Celular Acudiente:</td><td style="padding: 8px;">${acudiente.celular}</td></tr>
-            </table>
-            `
-              : ""
-          }
-
-          <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 15px; font-size: 11px; text-align: center; color: #9ca3af;">
-            Este es un correo automático generado por el portal de Enrolamiento CEA.
-          </div>
-        </div>
+      <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+        <p style="white-space: pre-wrap; margin: 0;">${emailTextBody}</p>
       </div>
     `;
 
@@ -175,7 +147,7 @@ serve(async (req: Request) => {
           const arrayBuffer = await fileBlob.arrayBuffer();
           attachments.push({
             filename: doc.nombre_archivo,
-            content: new Uint8Array(arrayBuffer),
+            content: Buffer.from(arrayBuffer),
           });
         } catch (downloadEx) {
           console.error(`Exception downloading ${doc.nombre_archivo}:`, downloadEx);

@@ -341,10 +341,10 @@ export const ScannerCropModal: React.FC<ScannerCropModalProps> = ({ isOpen, imag
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 p-4" style={{ touchAction: 'none' }}>
-      <div className="text-white text-lg font-bold mb-1">Ajuste de Escáner y Recorte</div>
-      <div className="bg-amber-500/25 border border-amber-400 text-amber-200 px-4 py-2.5 rounded-xl text-xs font-semibold mb-4 flex items-center justify-center gap-2.5 max-w-md text-center shadow-lg">
-        <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-300" />
-        <span>⚠️ Arrastre los 4 puntos exactamente a las 4 esquinas de su documento para eliminar la mesa y los bordes sobrantes.</span>
+      <div className="text-white text-lg font-bold mb-2">Ajuste de Escáner Profesional</div>
+      <div className="bg-emerald-500/20 text-emerald-300 px-4 py-2 rounded-lg text-xs font-medium mb-4 flex items-center justify-center gap-2 max-w-sm text-center">
+        <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+        Arrastre los 4 puntos azules hacia las 4 esquinas reales de su documento para aplanarlo.
       </div>
       
       <div 

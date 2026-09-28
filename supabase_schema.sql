@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.solicitudes (
         'Pendiente pagos instructor',
         'Completo',
         'Enviado a academia',
+        'Proceso finalizado',
         'Aprobado',
         'Rechazado'
     )),
