@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEnrollment } from '@/hooks/useEnrollment';
 import { CATEGORIAS_LICENCIA, type Solicitud } from '@/types/enrollment';
@@ -26,7 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, signOut, loading: authLoading } = useAuth();
+  const { user, isAdmin, signOut, loading: authLoading } = useAuth();
   const { 
     loading: enrollmentLoading, getSolicitudes, createSolicitud, 
     getAlumnoDetails, uploadInstructorPayments, sendExpedienteEmail, deleteSolicitud,
@@ -65,9 +65,8 @@ const Index = () => {
   const [mensajeTemplate, setMensajeTemplate] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
-  // Seguridad Ágil
-  const [isAgileLocked, setIsAgileLocked] = useState(localStorage.getItem('agile_auth') !== 'true');
-  const [agilePassword, setAgilePassword] = useState('');
+  // Acceso: solo usuarios autenticados que el servidor confirma como administradores
+  const isAuthorized = !authLoading && !!user && isAdmin;
 
   const loadData = async () => {
     try {
@@ -82,71 +81,31 @@ const Index = () => {
     }
   };
 
-  // Cargar datos al inicio
+  // Cargar datos al inicio (solo si hay sesión de instructor)
   useEffect(() => {
-    if (!isAgileLocked) {
+    if (isAuthorized) {
       loadData();
     }
-  }, [isAgileLocked]);
+  }, [isAuthorized]);
 
-  const handleAgileLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (agilePassword === 'DrivingSec2026*') {
-      setIsAgileLocked(false);
-      localStorage.setItem('agile_auth', 'true');
-      toast({
-        title: 'Acceso Concedido',
-        description: 'Bienvenido al panel de administración.'
-      });
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Clave incorrecta',
-        description: 'La clave maestra ingresada no es válida.'
-      });
-    }
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
   };
 
-  const handleAgileLogout = () => {
-    setIsAgileLocked(true);
-    setAgilePassword('');
-    localStorage.removeItem('agile_auth');
-  };
-
-  if (isAgileLocked) {
+  if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-sm shadow-xl border-0 rounded-2xl overflow-hidden">
-          <div className="bg-primary h-2 w-full" />
-          <CardHeader className="text-center pb-4 pt-8">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary mb-4">
-              <Car className="w-8 h-8" />
-            </div>
-            <CardTitle className="text-2xl font-display font-bold text-slate-800">Acceso Privado</CardTitle>
-            <CardDescription>
-              Ingrese la clave maestra de seguridad para entrar al sistema.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAgileLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Input
-                  type="password"
-                  placeholder="Clave maestra..."
-                  value={agilePassword}
-                  onChange={(e) => setAgilePassword(e.target.value)}
-                  className="rounded-xl h-12 text-center text-lg"
-                  autoFocus
-                />
-              </div>
-              <Button type="submit" className="w-full rounded-xl h-12 font-bold text-base">
-                Ingresar al Panel
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
       </div>
     );
+  }
+
+  if (!isAuthorized) {
+    return <Navigate to="/auth" replace />;
   }
 
   // Cargar configuración de correo
@@ -452,7 +411,7 @@ const Index = () => {
             <Button variant="outline" size="sm" onClick={handleOpenConfig} className="hidden sm:flex gap-2 rounded-xl">
               <Settings className="w-4 h-4" /> Configuración
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleAgileLogout} title="Bloquear Panel">
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="Cerrar sesión">
               <LogOut className="w-5 h-5 text-muted-foreground" />
             </Button>
           </div>
@@ -804,7 +763,8 @@ const Index = () => {
                     {(() => {
                       const getDocUrl = (tipo: string) => {
                         const doc = alumnoDetails?.documentos.find((d: any) => d.tipo === tipo);
-                        return doc ? supabase.storage.from('expedientes').getPublicUrl(doc.storage_path).data.publicUrl : '#';
+                        // URL firmada y temporal generada por getAlumnoDetails (el bucket es privado)
+                        return doc?.signed_url || '#';
                       };
 
                       const renderDocStatus = (tipo: string) => {

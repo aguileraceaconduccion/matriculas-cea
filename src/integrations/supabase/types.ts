@@ -302,7 +302,43 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      es_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      abrir_solicitud: {
+        Args: { p_codigo: string }
+        Returns: Json
+      }
+      registrar_matricula: {
+        Args: { p_codigo: string; p_alumno: Json }
+        Returns: string
+      }
+      registrar_acudiente: {
+        Args: {
+          p_codigo: string
+          p_alumno: string
+          p_nombre: string
+          p_documento: string
+          p_celular: string
+          p_firma_path: string
+        }
+        Returns: undefined
+      }
+      registrar_documento: {
+        Args: {
+          p_codigo: string
+          p_alumno: string
+          p_tipo: string
+          p_nombre: string
+          p_path: string
+        }
+        Returns: undefined
+      }
+      finalizar_matricula: {
+        Args: { p_codigo: string; p_alumno: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

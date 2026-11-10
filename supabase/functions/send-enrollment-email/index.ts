@@ -3,11 +3,35 @@ import { Resend } from "npm:resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Buffer } from "node:buffer";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+// Orígenes permitidos: defina ALLOWED_ORIGINS (separados por coma) en los secretos de la
+// función, p. ej. "https://usuario.github.io". Si no se define, se acepta cualquiera
+// (la autenticación por token de instructor sigue siendo obligatoria).
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const buildCorsHeaders = (req: Request) => {
+  const origin = req.headers.get("Origin") ?? "";
+  const allowOrigin =
+    ALLOWED_ORIGINS.length === 0 ? "*" : ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
 };
+
+const escapeHtml = (text: string) =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface EnrollmentEmailRequest {
   alumnoId: string;
@@ -15,32 +39,62 @@ interface EnrollmentEmailRequest {
 }
 
 serve(async (req: Request) => {
+  const corsHeaders = buildCorsHeaders(req);
+
   // Preflight check
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const jsonResponse = (body: unknown, status: number) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "re_123456789"; // Fallback to avoid crash if not set during build
+  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
     // Declare outside try to use in catch
     let reqBody: EnrollmentEmailRequest | null = null;
-    
+
     try {
-      if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-        throw new Error("Supabase environment variables are not configured");
+      if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !RESEND_API_KEY) {
+        throw new Error("Server environment variables are not configured");
+      }
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      // --- Autenticación: solo un instructor (tabla administradores) puede enviar expedientes ---
+      const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+      if (!token) {
+        return jsonResponse({ success: false, error: "No autenticado" }, 401);
+      }
+      const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !userData?.user) {
+        return jsonResponse({ success: false, error: "Sesión inválida" }, 401);
+      }
+      const { data: adminRow } = await supabase
+        .from("administradores")
+        .select("user_id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (!adminRow) {
+        return jsonResponse({ success: false, error: "Sin permisos" }, 403);
       }
 
       const resend = new Resend(RESEND_API_KEY);
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
       // Parse request body
       reqBody = await req.json();
       if (!reqBody || !reqBody.alumnoId || !reqBody.solicitudId) {
         throw new Error("alumnoId and solicitudId are required");
       }
-      
+      if (!UUID_RE.test(reqBody.alumnoId) || !UUID_RE.test(reqBody.solicitudId)) {
+        throw new Error("Identificadores inválidos");
+      }
+
       const { alumnoId, solicitudId } = reqBody;
 
     // 1. Fetch Alumno Data
@@ -120,7 +174,7 @@ serve(async (req: Request) => {
     // Build rich email HTML body
     const emailHtmlBody = `
       <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-        <p style="white-space: pre-wrap; margin: 0;">${emailTextBody}</p>
+        <p style="white-space: pre-wrap; margin: 0;">${escapeHtml(emailTextBody)}</p>
       </div>
     `;
 

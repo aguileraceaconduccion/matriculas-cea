@@ -72,7 +72,7 @@ const MatriculaAlumno = () => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getSolicitudByToken, updateSolicitudEstado, submitAlumnoEnrollment, loading } = useEnrollment();
+  const { getSolicitudByToken, submitAlumnoEnrollment, loading } = useEnrollment();
 
   // Estados de carga e inicialización
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
@@ -160,8 +160,8 @@ const MatriculaAlumno = () => {
             setSolicitud(sol);
           } else {
             setSolicitud(sol);
-            await updateSolicitudEstado(sol.id, 'Alumno diligenciando');
-            
+            // abrir_solicitud (servidor) ya marcó la solicitud como "Alumno diligenciando"
+
             let nombres = '';
             let apellidos = '';
             if (sol.nombre_alumno.includes('  ')) {

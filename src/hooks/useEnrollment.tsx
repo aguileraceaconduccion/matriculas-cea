@@ -3,6 +3,25 @@ import { supabase } from '@/integrations/supabase/client';
 import type { AlumnoData, Solicitud } from '@/types/enrollment';
 import { generateFichaMatriculaDocx, generateHabeasDataPDF } from '@/lib/documentGenerator';
 
+// Código único de 16 caracteres generado con el generador criptográfico del navegador
+// (alfabeto de 32 símbolos sin caracteres ambiguos, sin sesgo de módulo).
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const generateSecureCode = (length = 16) => {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+};
+
+// Convierte un data URL (firma del canvas) en Blob
+const dataUrlToBlob = (dataUrl: string) => {
+  const parts = dataUrl.split(';base64,');
+  const contentType = parts[0].split(':')[1];
+  const raw = window.atob(parts[1]);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; ++i) bytes[i] = raw.charCodeAt(i);
+  return new Blob([bytes], { type: contentType });
+};
+
 export const useEnrollment = () => {
   const [loading, setLoading] = useState(false);
 
@@ -36,8 +55,7 @@ export const useEnrollment = () => {
   ) => {
     setLoading(true);
     try {
-      // Generar código único aleatorio de 8 caracteres
-      const codigo_unico = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const codigo_unico = generateSecureCode();
       
       const { data, error } = await supabase
         .from('solicitudes')
@@ -93,10 +111,22 @@ export const useEnrollment = () => {
         .select('*')
         .eq('alumno_id', alumno.id);
 
+      // El bucket es privado: se generan enlaces firmados que caducan en 1 hora
+      const docs = documentos || [];
+      const urlByPath = new Map<string, string>();
+      if (docs.length > 0) {
+        const { data: signed } = await supabase.storage
+          .from('expedientes')
+          .createSignedUrls(docs.map(d => d.storage_path), 3600);
+        signed?.forEach(s => {
+          if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
+        });
+      }
+
       return {
         alumno,
         acudiente,
-        documentos: documentos || []
+        documentos: docs.map(d => ({ ...d, signed_url: urlByPath.get(d.storage_path) ?? null }))
       };
     } catch (err) {
       console.error('Error al obtener detalles del alumno:', err);
@@ -118,13 +148,6 @@ export const useEnrollment = () => {
     try {
       const cleanName = nombreAlumno.replace(/[^a-zA-Z0-9]/g, '_');
 
-      // Crear bucket si no existe
-      try {
-        await supabase.storage.createBucket('expedientes', { public: false });
-      } catch (e) {
-        // Ignorar error si ya existe
-      }
-
       const uploadedDocs = [];
 
       // 1. Cargar Pago PIN
@@ -137,8 +160,6 @@ export const useEnrollment = () => {
           .upload(pinPath, pagoPinFile, { upsert: true });
 
         if (uploadPinErr) throw uploadPinErr;
-
-        const { data: pinUrl } = supabase.storage.from('expedientes').getPublicUrl(pinPath);
 
         const { error: dbPinErr } = await supabase.from('documentos').insert({
           alumno_id: alumnoId,
@@ -161,8 +182,6 @@ export const useEnrollment = () => {
           .upload(teorPath, pagoTeoriaFile, { upsert: true });
 
         if (uploadTeorErr) throw uploadTeorErr;
-
-        const { data: teorUrl } = supabase.storage.from('expedientes').getPublicUrl(teorPath);
 
         const { error: dbTeorErr } = await supabase.from('documentos').insert({
           alumno_id: alumnoId,
@@ -215,14 +234,11 @@ export const useEnrollment = () => {
   const getSolicitudByToken = async (token: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('solicitudes')
-        .select('*')
-        .eq('codigo_unico', token)
-        .maybeSingle();
+      // Función RPC: valida el código en el servidor y marca "Alumno diligenciando"
+      const { data, error } = await supabase.rpc('abrir_solicitud', { p_codigo: token });
 
       if (error) throw error;
-      return data as Solicitud | null;
+      return (data as unknown as Solicitud | null) ?? null;
     } catch (err) {
       console.error('Error al buscar solicitud por token:', err);
       throw err;
@@ -263,134 +279,74 @@ export const useEnrollment = () => {
     try {
       const cleanName = `${alumnoData.nombres} ${alumnoData.apellidos}`.trim().replace(/[^a-zA-Z0-9]/g, '_');
 
-      // Crear bucket expedientes si no existe
-      try {
-        await supabase.storage.createBucket('expedientes', { public: false });
-      } catch (e) {
-        // Ignorar
-      }
-
-      // 1. Insertar registro en alumnos
-      const { data: newAlumno, error: insertAlumnoErr } = await supabase
-        .from('alumnos')
-        .insert({
-          solicitud_id: solicitud.id,
-          categoria: alumnoData.categoria,
-          fecha_ingreso: alumnoData.fecha_ingreso,
-          tipo_documento: alumnoData.tipo_documento,
-          numero_documento: alumnoData.numero_documento,
-          nombres: alumnoData.nombres,
-          apellidos: alumnoData.apellidos,
-          genero: alumnoData.genero,
-          estado_civil: alumnoData.estado_civil,
-          fecha_nacimiento: alumnoData.fecha_nacimiento,
-          lugar_origen: alumnoData.lugar_origen,
-          estrato: alumnoData.estrato,
-          eps: alumnoData.eps,
-          nivel_formacion: alumnoData.nivel_formacion,
-          ocupacion: alumnoData.ocupacion,
-          email_1: alumnoData.email_1,
-          email_2: alumnoData.email_2 || null,
-          celular: alumnoData.celular,
-          telefono_fijo: alumnoData.telefono_fijo || null,
-          direccion: alumnoData.direccion,
-          contacto_emergencia: alumnoData.contacto_emergencia,
-          celular_emergencia: alumnoData.celular_emergencia,
-          asesor: alumnoData.asesor,
-          es_menor_edad: alumnoData.es_menor_edad
-        })
-        .select()
-        .single();
-
-      if (insertAlumnoErr) throw insertAlumnoErr;
-      const alumnoId = newAlumno.id;
-
-      // 2. Si es menor de edad, cargar firma y datos de acudiente
-      if (alumnoData.es_menor_edad && tutorSignatureUrl && alumnoData.acudiente_nombre) {
-        // Convertir firma a Blob y subirla
-        const parts = tutorSignatureUrl.split(';base64,');
-        const contentType = parts[0].split(':')[1];
-        const raw = window.atob(parts[1]);
-        const uInt8Array = new Uint8Array(raw.length);
-        for (let i = 0; i < raw.length; ++i) {
-          uInt8Array[i] = raw.charCodeAt(i);
-        }
-        const tutorSigBlob = new Blob([uInt8Array], { type: contentType });
-        const tutorSigPath = `${alumnoId}/FirmaAcudiente_${cleanName}.png`;
-
-        const { error: upTutorSigErr } = await supabase.storage
+      // Todo el flujo del alumno usa funciones RPC validadas por el servidor con el código único.
+      // Las rutas de archivo llevan una marca de tiempo para que un reintento nunca choque con un archivo previo.
+      const codigo = solicitud.codigo_unico;
+      const stamp = Date.now();
+      const upload = async (path: string, body: Blob | File, contentType: string) => {
+        const { error } = await supabase.storage
           .from('expedientes')
-          .upload(tutorSigPath, tutorSigBlob, { contentType: 'image/png', upsert: true });
+          .upload(path, body, { contentType, upsert: false });
+        if (error) throw error;
+      };
+      const registrarDocumento = async (alumnoId: string, tipo: string, nombre: string, path: string) => {
+        const { error } = await supabase.rpc('registrar_documento', {
+          p_codigo: codigo,
+          p_alumno: alumnoId,
+          p_tipo: tipo,
+          p_nombre: nombre,
+          p_path: path,
+        });
+        if (error) throw error;
+      };
 
-        if (upTutorSigErr) throw upTutorSigErr;
+      // 1. Registrar (o actualizar si es un reintento) al alumno
+      const { acudiente_nombre, acudiente_documento, acudiente_celular, ...alumnoRow } = alumnoData;
+      const { data: alumnoIdData, error: insertAlumnoErr } = await supabase.rpc('registrar_matricula', {
+        p_codigo: codigo,
+        p_alumno: alumnoRow as unknown as Record<string, never>,
+      });
+      if (insertAlumnoErr) throw insertAlumnoErr;
+      const alumnoId = alumnoIdData as unknown as string;
 
-        const { data: publicTutorSig } = supabase.storage.from('expedientes').getPublicUrl(tutorSigPath);
+      // 2. Si es menor de edad, subir la firma y registrar al acudiente
+      if (alumnoData.es_menor_edad && tutorSignatureUrl && acudiente_nombre) {
+        const tutorSigPath = `${alumnoId}/${stamp}_FirmaAcudiente_${cleanName}.png`;
+        await upload(tutorSigPath, dataUrlToBlob(tutorSignatureUrl), 'image/png');
 
-        const { error: insertAcudienteErr } = await supabase
-          .from('acudientes')
-          .insert({
-            alumno_id: alumnoId,
-            nombre: alumnoData.acudiente_nombre,
-            documento: alumnoData.acudiente_documento || '',
-            celular: alumnoData.acudiente_celular || '',
-            firma_url: publicTutorSig.publicUrl
-          });
-
+        const { error: insertAcudienteErr } = await supabase.rpc('registrar_acudiente', {
+          p_codigo: codigo,
+          p_alumno: alumnoId,
+          p_nombre: acudiente_nombre,
+          p_documento: acudiente_documento || '',
+          p_celular: acudiente_celular || '',
+          p_firma_path: tutorSigPath,
+        });
         if (insertAcudienteErr) throw insertAcudienteErr;
       }
 
-      // 3. Subir Fotografía del estudiante
+      // 3. Fotografía del estudiante
       const fotoExt = fotoFile.name.split('.').pop() || 'jpg';
-      const fotoPath = `${alumnoId}/Foto_${cleanName}.${fotoExt}`;
-      const { error: upFotoErr } = await supabase.storage
-        .from('expedientes')
-        .upload(fotoPath, fotoFile, { upsert: true });
+      const fotoNombre = `Foto_${cleanName}.${fotoExt}`;
+      const fotoPath = `${alumnoId}/${stamp}_${fotoNombre}`;
+      await upload(fotoPath, fotoFile, fotoFile.type || 'image/jpeg');
+      await registrarDocumento(alumnoId, 'foto', fotoNombre, fotoPath);
 
-      if (upFotoErr) throw upFotoErr;
+      // 4. Cédula en PDF
+      const cedulaNombre = `Cedula_${cleanName}.pdf`;
+      const cedulaPath = `${alumnoId}/${stamp}_${cedulaNombre}`;
+      await upload(cedulaPath, cedulaPdfFile, 'application/pdf');
+      await registrarDocumento(alumnoId, 'cedula_pdf', cedulaNombre, cedulaPath);
 
-      const { error: dbFotoErr } = await supabase.from('documentos').insert({
-        alumno_id: alumnoId,
-        tipo: 'foto',
-        nombre_archivo: `Foto_${cleanName}.${fotoExt}`,
-        storage_path: fotoPath
-      });
-      if (dbFotoErr) throw dbFotoErr;
-
-      // 4. Subir Cédula en PDF
-      const cedulaPath = `${alumnoId}/Cedula_${cleanName}.pdf`;
-      const { error: upCedErr } = await supabase.storage
-        .from('expedientes')
-        .upload(cedulaPath, cedulaPdfFile, { contentType: 'application/pdf', upsert: true });
-
-      if (upCedErr) throw upCedErr;
-
-      const { error: dbCedErr } = await supabase.from('documentos').insert({
-        alumno_id: alumnoId,
-        tipo: 'cedula_pdf',
-        nombre_archivo: `Cedula_${cleanName}.pdf`,
-        storage_path: cedulaPath
-      });
-      if (dbCedErr) throw dbCedErr;
-
-      // 4.5. Subir Licencia de Conducción en PDF (Si aplica)
+      // 4.5. Licencia de conducción en PDF (si aplica)
       if (licenciaPdfFile) {
-        const licenciaPath = `${alumnoId}/Licencia_${cleanName}.pdf`;
-        const { error: upLicErr } = await supabase.storage
-          .from('expedientes')
-          .upload(licenciaPath, licenciaPdfFile, { contentType: 'application/pdf', upsert: true });
-
-        if (upLicErr) throw upLicErr;
-
-        const { error: dbLicErr } = await supabase.from('documentos').insert({
-          alumno_id: alumnoId,
-          tipo: 'licencia_pdf',
-          nombre_archivo: `Licencia_${cleanName}.pdf`,
-          storage_path: licenciaPath
-        });
-        if (dbLicErr) throw dbLicErr;
+        const licenciaNombre = `Licencia_${cleanName}.pdf`;
+        const licenciaPath = `${alumnoId}/${stamp}_${licenciaNombre}`;
+        await upload(licenciaPath, licenciaPdfFile, 'application/pdf');
+        await registrarDocumento(alumnoId, 'licencia_pdf', licenciaNombre, licenciaPath);
       }
 
-      // 5. Generar y Subir Habeas Data PDF
+      // 5. Generar y subir Habeas Data PDF
       const habeasPdfFile = await generateHabeasDataPDF({
         studentName: `${alumnoData.nombres} ${alumnoData.apellidos}`.trim(),
         documentType: alumnoData.tipo_documento,
@@ -401,55 +357,32 @@ export const useEnrollment = () => {
         tutorDocument: alumnoData.acudiente_documento,
         tutorSignatureDataUrl: tutorSignatureUrl
       });
+      const habeasNombre = `HabeasData_${cleanName}.pdf`;
+      const habeasPath = `${alumnoId}/${stamp}_${habeasNombre}`;
+      await upload(habeasPath, habeasPdfFile, 'application/pdf');
+      await registrarDocumento(alumnoId, 'habeas_data', habeasNombre, habeasPath);
 
-      const habeasPath = `${alumnoId}/HabeasData_${cleanName}.pdf`;
-      const { error: upHabErr } = await supabase.storage
-        .from('expedientes')
-        .upload(habeasPath, habeasPdfFile, { contentType: 'application/pdf', upsert: true });
-
-      if (upHabErr) throw upHabErr;
-
-      const { error: dbHabErr } = await supabase.from('documentos').insert({
-        alumno_id: alumnoId,
-        tipo: 'habeas_data',
-        nombre_archivo: `HabeasData_${cleanName}.pdf`,
-        storage_path: habeasPath
-      });
-      if (dbHabErr) throw dbHabErr;
-
-      // 6. Generar y Subir Ficha de Matrícula DOCX
+      // 6. Generar y subir Ficha de Matrícula DOCX
       const fichaDocxFile = await generateFichaMatriculaDocx({
         ...alumnoData,
-        // Incluimos campos de acudiente para docxtemplater
         acudiente_nombre: alumnoData.acudiente_nombre,
         acudiente_documento: alumnoData.acudiente_documento,
         acudiente_celular: alumnoData.acudiente_celular,
       });
+      const fichaNombre = `FichaMatricula_${cleanName}.docx`;
+      const fichaPath = `${alumnoId}/${stamp}_${fichaNombre}`;
+      await upload(
+        fichaPath,
+        fichaDocxFile,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+      await registrarDocumento(alumnoId, 'ficha_matricula', fichaNombre, fichaPath);
 
-      const fichaPath = `${alumnoId}/FichaMatricula_${cleanName}.docx`;
-      const { error: upFicErr } = await supabase.storage
-        .from('expedientes')
-        .upload(fichaPath, fichaDocxFile, { 
-          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          upsert: true 
-        });
-
-      if (upFicErr) throw upFicErr;
-
-      const { error: dbFicErr } = await supabase.from('documentos').insert({
-        alumno_id: alumnoId,
-        tipo: 'ficha_matricula',
-        nombre_archivo: `FichaMatricula_${cleanName}.docx`,
-        storage_path: fichaPath
+      // 7. Cerrar el diligenciamiento (el servidor verifica que estén los documentos obligatorios)
+      const { error: updateSolErr } = await supabase.rpc('finalizar_matricula', {
+        p_codigo: codigo,
+        p_alumno: alumnoId,
       });
-      if (dbFicErr) throw dbFicErr;
-
-      // 7. Actualizar el estado de la solicitud
-      const { error: updateSolErr } = await supabase
-        .from('solicitudes')
-        .update({ estado: 'Pendiente pagos instructor' })
-        .eq('id', solicitud.id);
-
       if (updateSolErr) throw updateSolErr;
 
       return { success: true, alumnoId };
