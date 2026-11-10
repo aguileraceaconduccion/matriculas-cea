@@ -5,8 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  /** true mientras se resuelve la sesión y el rol de administrador */
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  /** true solo si el usuario está registrado en la tabla `administradores` (verificado en el servidor) */
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -16,34 +18,47 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
+        setSessionLoading(false);
       }
     );
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
+      setSessionLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: window.location.origin },
+  // El rol se consulta al servidor (función es_admin); nunca se confía en el cliente.
+  const userId = user?.id;
+  useEffect(() => {
+    let cancelled = false;
+    if (!userId) {
+      setIsAdmin(false);
+      setAdminLoading(false);
+      return;
+    }
+    setAdminLoading(true);
+    supabase.rpc('es_admin').then(({ data, error }) => {
+      if (cancelled) return;
+      setIsAdmin(!error && data === true);
+      setAdminLoading(false);
     });
-    return { error: error as Error | null };
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -55,7 +70,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading: sessionLoading || adminLoading,
+        isAdmin,
+        signIn,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

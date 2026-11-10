@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEnrollment } from '@/hooks/useEnrollment';
-import type { Solicitud } from '@/types/enrollment';
+import { CATEGORIAS_LICENCIA, type Solicitud } from '@/types/enrollment';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Car, LogOut, Plus, Search, Mail, Phone, Calendar, 
   CheckCircle, Clock, AlertCircle, FileText, Send, 
-  Share2, Copy, Settings, ArrowLeft, Loader2, Upload, FileCheck, Trash2
+  Share2, Copy, Settings, ArrowLeft, Loader2, Upload, FileCheck, Trash2,
+  GraduationCap, CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -25,10 +26,11 @@ import { Textarea } from '@/components/ui/textarea';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, signOut, loading: authLoading } = useAuth();
+  const { user, isAdmin, signOut, loading: authLoading } = useAuth();
   const { 
     loading: enrollmentLoading, getSolicitudes, createSolicitud, 
-    getAlumnoDetails, uploadInstructorPayments, sendExpedienteEmail, deleteSolicitud
+    getAlumnoDetails, uploadInstructorPayments, sendExpedienteEmail, deleteSolicitud,
+    updateSolicitudEstado
   } = useEnrollment();
   const { toast } = useToast();
 
@@ -38,7 +40,8 @@ const Index = () => {
 
   // Modales e interactivos
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newNombre, setNewNombre] = useState('');
+  const [newNombres, setNewNombres] = useState('');
+  const [newApellidos, setNewApellidos] = useState('');
   const [newCelular, setNewCelular] = useState('');
   const [newCorreo, setNewCorreo] = useState('');
   const [newCategoria, setNewCategoria] = useState('B1');
@@ -62,9 +65,8 @@ const Index = () => {
   const [mensajeTemplate, setMensajeTemplate] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
-  // Seguridad Ágil
-  const [isAgileLocked, setIsAgileLocked] = useState(localStorage.getItem('agile_auth') !== 'true');
-  const [agilePassword, setAgilePassword] = useState('');
+  // Acceso: solo usuarios autenticados que el servidor confirma como administradores
+  const isAuthorized = !authLoading && !!user && isAdmin;
 
   const loadData = async () => {
     try {
@@ -79,71 +81,31 @@ const Index = () => {
     }
   };
 
-  // Cargar datos al inicio
+  // Cargar datos al inicio (solo si hay sesión de instructor)
   useEffect(() => {
-    if (!isAgileLocked) {
+    if (isAuthorized) {
       loadData();
     }
-  }, [isAgileLocked]);
+  }, [isAuthorized]);
 
-  const handleAgileLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (agilePassword === 'DrivingSec2026*') {
-      setIsAgileLocked(false);
-      localStorage.setItem('agile_auth', 'true');
-      toast({
-        title: 'Acceso Concedido',
-        description: 'Bienvenido al panel de administración.'
-      });
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Clave incorrecta',
-        description: 'La clave maestra ingresada no es válida.'
-      });
-    }
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
   };
 
-  const handleAgileLogout = () => {
-    setIsAgileLocked(true);
-    setAgilePassword('');
-    localStorage.removeItem('agile_auth');
-  };
-
-  if (isAgileLocked) {
+  if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-sm shadow-xl border-0 rounded-2xl overflow-hidden">
-          <div className="bg-primary h-2 w-full" />
-          <CardHeader className="text-center pb-4 pt-8">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary mb-4">
-              <Car className="w-8 h-8" />
-            </div>
-            <CardTitle className="text-2xl font-display font-bold text-slate-800">Acceso Privado</CardTitle>
-            <CardDescription>
-              Ingrese la clave maestra de seguridad para entrar al sistema.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAgileLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Input
-                  type="password"
-                  placeholder="Clave maestra..."
-                  value={agilePassword}
-                  onChange={(e) => setAgilePassword(e.target.value)}
-                  className="rounded-xl h-12 text-center text-lg"
-                  autoFocus
-                />
-              </div>
-              <Button type="submit" className="w-full rounded-xl h-12 font-bold text-base">
-                Ingresar al Panel
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
       </div>
     );
+  }
+
+  if (!isAuthorized) {
+    return <Navigate to="/auth" replace />;
   }
 
   // Cargar configuración de correo
@@ -239,7 +201,7 @@ const Index = () => {
 
   const handleCreateSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNombre || !newCelular || !newCorreo) {
+    if (!newNombres || !newApellidos || !newCelular || !newCorreo) {
       toast({
         variant: 'destructive',
         title: 'Campos incompletos',
@@ -249,8 +211,10 @@ const Index = () => {
     }
 
     try {
-      const solicitud = await createSolicitud(newNombre, newCorreo, newCelular, newCategoria);
-      const link = `${window.location.origin}/matricula/${solicitud.codigo_unico}`;
+      const fullName = `${newNombres.trim()}  ${newApellidos.trim()}`;
+      const solicitud = await createSolicitud(fullName, newCorreo, newCelular, newCategoria);
+      const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
+      const link = `${baseUrl}#/matricula/${solicitud.codigo_unico}`;
       setGeneratedLink(link);
       setJustCreated(solicitud);
       
@@ -260,7 +224,8 @@ const Index = () => {
       });
       
       // Limpiar y recargar
-      setNewNombre('');
+      setNewNombres('');
+      setNewApellidos('');
       setNewCelular('');
       setNewCorreo('');
       loadData();
@@ -361,6 +326,29 @@ const Index = () => {
     }
   };
 
+  const handleMarkProcesoFinalizado = async (solicitudId: string, nuevoEstado: Solicitud['estado']) => {
+    try {
+      await updateSolicitudEstado(solicitudId, nuevoEstado);
+      toast({
+        title: 'Estado actualizado',
+        description: `El expediente ha sido marcado como "${nuevoEstado}".`
+      });
+      if (selectedSolicitud && selectedSolicitud.id === solicitudId) {
+        setSelectedSolicitud({
+          ...selectedSolicitud,
+          estado: nuevoEstado
+        });
+      }
+      loadData();
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error al cambiar estado',
+        description: err.message
+      });
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -380,9 +368,11 @@ const Index = () => {
       sol.nombre_alumno.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sol.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sol.celular.includes(searchTerm) ||
-      sol.codigo_unico.toLowerCase().includes(searchTerm.toLowerCase());
+      sol.codigo_unico.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (sol.alumnos && sol.alumnos.length > 0 && sol.alumnos[0].numero_documento.includes(searchTerm));
 
     if (activeTab === 'todos') return matchesSearch;
+    if (activeTab === 'finalizados') return matchesSearch && sol.estado === 'Proceso finalizado';
     if (activeTab === 'enviadas') return matchesSearch && sol.estado === 'Enviado a academia';
     if (activeTab === 'completas') return matchesSearch && sol.estado === 'Completo';
     if (activeTab === 'pendientes_pago') return matchesSearch && sol.estado === 'Pendiente pagos instructor';
@@ -421,7 +411,7 @@ const Index = () => {
             <Button variant="outline" size="sm" onClick={handleOpenConfig} className="hidden sm:flex gap-2 rounded-xl">
               <Settings className="w-4 h-4" /> Configuración
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleAgileLogout} title="Bloquear Panel">
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="Cerrar sesión">
               <LogOut className="w-5 h-5 text-muted-foreground" />
             </Button>
           </div>
@@ -455,6 +445,12 @@ const Index = () => {
             <CardContent className="p-3">
               <p className="text-xs text-muted-foreground font-medium">Enviadas</p>
               <p className="text-2xl font-bold mt-1 text-slate-500">{countState('Enviado a academia')}</p>
+            </CardContent>
+          </Card>
+          <Card className="flex-shrink-0 w-32 border-l-4 border-l-emerald-500 bg-card">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground font-medium">Finalizados</p>
+              <p className="text-2xl font-bold mt-1 text-emerald-600">{countState('Proceso finalizado')}</p>
             </CardContent>
           </Card>
         </div>
@@ -505,6 +501,14 @@ const Index = () => {
           >
             Enviadas ({countState('Enviado a academia')})
           </Button>
+          <Button 
+            variant={activeTab === 'finalizados' ? 'default' : 'secondary'} 
+            size="sm"
+            onClick={() => setActiveTab('finalizados')}
+            className="rounded-full flex-shrink-0"
+          >
+            Finalizados ({countState('Proceso finalizado')})
+          </Button>
         </div>
 
         {/* Lista de Solicitudes */}
@@ -524,6 +528,11 @@ const Index = () => {
                         {sol.categoria}
                       </Badge>
                     </div>
+                    {sol.alumnos && sol.alumnos.length > 0 && (
+                      <div className="text-xs text-muted-foreground font-medium">
+                        {sol.alumnos[0].tipo_documento} {sol.alumnos[0].numero_documento}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>{new Date(sol.created_at).toLocaleDateString('es-CO')}</span>
@@ -546,6 +555,9 @@ const Index = () => {
                       )}
                       {sol.estado === 'Enviado a academia' && (
                         <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-100 border-slate-300">Enviado</Badge>
+                      )}
+                      {sol.estado === 'Proceso finalizado' && (
+                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200">Proceso Finalizado</Badge>
                       )}
                     </div>
                     <Button 
@@ -602,15 +614,25 @@ const Index = () => {
 
           {!generatedLink ? (
             <form onSubmit={handleCreateSolicitud} className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="newNombre">Nombre Completo del Alumno</Label>
-                <Input 
-                  id="newNombre" 
-                  placeholder="Juan Pérez" 
-                  value={newNombre} 
-                  onChange={(e) => setNewNombre(e.target.value)} 
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="newNombres">Nombres del Alumno</Label>
+                  <Input 
+                    id="newNombres" 
+                    value={newNombres} 
+                    onChange={(e) => setNewNombres(e.target.value)} 
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="newApellidos">Apellidos del Alumno</Label>
+                  <Input 
+                    id="newApellidos" 
+                    value={newApellidos} 
+                    onChange={(e) => setNewApellidos(e.target.value)} 
+                    required
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -618,7 +640,6 @@ const Index = () => {
                   <Input 
                     id="newCelular" 
                     type="tel"
-                    placeholder="3001234567" 
                     value={newCelular} 
                     onChange={(e) => setNewCelular(e.target.value)} 
                     required
@@ -632,13 +653,11 @@ const Index = () => {
                     value={newCategoria} 
                     onChange={(e) => setNewCategoria(e.target.value)}
                   >
-                    <option value="A2">A2 (Moto)</option>
-                    <option value="B1">B1 (Carro)</option>
-                    <option value="C1">C1 (Público)</option>
-                    <option value="C2">C2 (Camión)</option>
-                    <option value="A2 y B1">A2 y B1</option>
-                    <option value="A2 y C2">A2 y C2</option>
-                    <option value="A2 y C1">A2 y C1</option>
+                    {CATEGORIAS_LICENCIA.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -647,7 +666,6 @@ const Index = () => {
                 <Input 
                   id="newCorreo" 
                   type="email"
-                  placeholder="alumno@correo.com" 
                   value={newCorreo} 
                   onChange={(e) => setNewCorreo(e.target.value)} 
                   required
@@ -715,7 +733,14 @@ const Index = () => {
               
               {/* Resumen del Alumno */}
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-foreground">Estudiante</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-foreground">Estudiante</h3>
+                  {selectedSolicitud.estado === 'Proceso finalizado' && (
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold text-[10px]">
+                      ✓ Proceso Finalizado
+                    </Badge>
+                  )}
+                </div>
                 <div className="bg-muted/40 p-3 rounded-lg space-y-1 text-xs">
                   <p className="font-semibold text-foreground text-sm">{selectedSolicitud.nombre_alumno}</p>
                   <p className="flex items-center gap-1.5 text-muted-foreground mt-1"><Mail className="w-3.5 h-3.5" /> {selectedSolicitud.email}</p>
@@ -738,7 +763,8 @@ const Index = () => {
                     {(() => {
                       const getDocUrl = (tipo: string) => {
                         const doc = alumnoDetails?.documentos.find((d: any) => d.tipo === tipo);
-                        return doc ? supabase.storage.from('expedientes').getPublicUrl(doc.storage_path).data.publicUrl : '#';
+                        // URL firmada y temporal generada por getAlumnoDetails (el bucket es privado)
+                        return doc?.signed_url || '#';
                       };
 
                       const renderDocStatus = (tipo: string) => {
@@ -775,6 +801,13 @@ const Index = () => {
                             <span className="text-muted-foreground">Cédula Identidad (PDF)</span>
                             {renderDocStatus('cedula_pdf')}
                           </div>
+
+                          {selectedSolicitud.categoria?.startsWith('Recategorización') && (
+                            <div className="flex items-center justify-between border-b pb-1.5 text-xs">
+                              <span className="text-muted-foreground">Licencia de Conducción (PDF)</span>
+                              {renderDocStatus('licencia_pdf')}
+                            </div>
+                          )}
 
                           {/* Items Instructor */}
                           <div className="flex items-center justify-between border-b pb-1.5 text-xs">
@@ -874,33 +907,66 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Botón de Enviar Expediente */}
+              {/* Botón de Enviar Expediente y Proceso Finalizado */}
               {alumnoDetails && (
-                <div className="border-t pt-4 space-y-2">
-                  {selectedSolicitud.estado === 'Completo' ? (
-                    <Button 
-                      onClick={handleSendEmail} 
-                      className="w-full py-5 text-sm rounded-xl font-bold flex items-center justify-center gap-1.5 shadow"
-                      disabled={enrollmentLoading}
-                    >
-                      {enrollmentLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4" />}
-                      ENVIAR EXPEDIENTE A ACADEMIA
-                    </Button>
-                  ) : selectedSolicitud.estado === 'Enviado a academia' ? (
-                    <Button 
-                      variant="outline"
-                      onClick={handleSendEmail} 
-                      className="w-full py-5 text-sm rounded-xl font-semibold border-primary text-primary flex items-center justify-center gap-1.5"
-                      disabled={enrollmentLoading}
-                    >
-                      {enrollmentLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4" />}
-                      REENVIAR EXPEDIENTE
-                    </Button>
-                  ) : (
-                    <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-lg flex items-start gap-1.5">
-                      <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <span>El checklist de documentos no está completo. El alumno debe finalizar su registro y el instructor cargar los soportes de pago antes de enviar a la academia.</span>
+                <div className="border-t pt-4 space-y-3">
+                  {selectedSolicitud.estado === 'Proceso finalizado' ? (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs p-3 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                        <div>
+                          <p className="font-bold text-emerald-900">Proceso Finalizado</p>
+                          <p className="text-[10px] text-emerald-700">El alumno ya concluyó su proceso en la academia.</p>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-8 border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+                        onClick={() => handleMarkProcesoFinalizado(selectedSolicitud.id, 'Enviado a academia')}
+                      >
+                        Reabrir
+                      </Button>
                     </div>
+                  ) : (
+                    <>
+                      {selectedSolicitud.estado === 'Completo' ? (
+                        <Button 
+                          onClick={handleSendEmail} 
+                          className="w-full py-5 text-sm rounded-xl font-bold flex items-center justify-center gap-1.5 shadow"
+                          disabled={enrollmentLoading}
+                        >
+                          {enrollmentLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4" />}
+                          ENVIAR EXPEDIENTE A ACADEMIA
+                        </Button>
+                      ) : selectedSolicitud.estado === 'Enviado a academia' ? (
+                        <Button 
+                          variant="outline"
+                          onClick={handleSendEmail} 
+                          className="w-full py-5 text-sm rounded-xl font-semibold border-primary text-primary flex items-center justify-center gap-1.5"
+                          disabled={enrollmentLoading}
+                        >
+                          {enrollmentLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4" />}
+                          REENVIAR EXPEDIENTE
+                        </Button>
+                      ) : (
+                        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-lg flex items-start gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <span>El checklist de documentos no está completo. El alumno debe finalizar su registro y el instructor cargar los soportes de pago antes de enviar a la academia.</span>
+                        </div>
+                      )}
+
+                      {/* Opción de Marcar como Proceso Finalizado */}
+                      <Button 
+                        variant="outline"
+                        onClick={() => handleMarkProcesoFinalizado(selectedSolicitud.id, 'Proceso finalizado')}
+                        className="w-full py-4 text-xs rounded-xl font-semibold border-emerald-600 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center gap-1.5 shadow-sm"
+                        disabled={enrollmentLoading}
+                      >
+                        <GraduationCap className="w-4 h-4 text-emerald-600" />
+                        MARCAR COMO PROCESO FINALIZADO
+                      </Button>
+                    </>
                   )}
                 </div>
               )}

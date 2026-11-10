@@ -2,6 +2,55 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 
+const getFullDocTypeName = (code: string) => {
+  const map: Record<string, string> = {
+    'CC': 'Cédula de Ciudadanía',
+    'TI': 'Tarjeta de Identidad',
+    'CE': 'Cédula de Extranjería',
+    'PPT': 'Permiso por Protección Temporal',
+    'PAS': 'Pasaporte'
+  };
+  return map[code] || code;
+};
+
+// "prueba seguridad" -> "Prueba_Seguridad" (sin tildes ni caracteres especiales)
+const toTitleSnake = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join('_');
+
+/** Nombre del archivo de la ficha, p. ej. "Ficha_matricula_Prueba_Seguridad.docx" */
+export const fichaMatriculaFileName = (nombres?: string, apellidos?: string) =>
+  `Ficha_matricula_${toTitleSnake(`${nombres || ''} ${apellidos || ''}`)}.docx`;
+
+// Reduce una imagen (data URL) a JPEG liviano para que el expediente no pese demasiado por correo.
+const shrinkToJpegBytes = async (dataUrl: string, maxSide = 1400, quality = 0.78): Promise<ArrayBuffer> => {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.width * scale));
+  canvas.height = Math.max(1, Math.round(img.height * scale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas no disponible');
+  ctx.fillStyle = '#ffffff'; // evita fondo negro si la imagen era PNG con transparencia
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', quality));
+  if (!blob) throw new Error('No se pudo comprimir la imagen');
+  return blob.arrayBuffer();
+};
+
 export interface HabeasDataInput {
   studentName: string;
   documentType: string;
@@ -15,7 +64,8 @@ export interface HabeasDataInput {
 
 export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<File> => {
   try {
-    const url = '/HABEAS DATA ACTUALIZADO OBLIGATORIO.pdf';
+    const baseUrl = import.meta.env.BASE_URL;
+    const url = `${baseUrl}HABEAS DATA ACTUALIZADO OBLIGATORIO.pdf`;
     const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer());
 
     const pdfDoc = await PDFDocument.load(existingPdfBytes);
@@ -25,7 +75,7 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     // Embed student signature
     const signatureImageBytes = await fetch(input.signatureDataUrl).then(res => res.arrayBuffer());
     const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
-    const signatureDims = signatureImage.scale(0.3);
+    const signatureDims = signatureImage.scale(0.2);
 
     // Get current date
     const today = new Date();
@@ -33,36 +83,36 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
     // Draw Student Signature & Info (Left side)
     lastPage.drawImage(signatureImage, {
-      x: 50,
-      y: 290,
+      x: 85,
+      y: 295,
       width: signatureDims.width,
       height: signatureDims.height,
     });
 
     lastPage.drawText(input.studentName, {
-      x: 100,
-      y: 265,
+      x: 85,
+      y: 282,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
-    lastPage.drawText(input.documentType, {
-      x: 160,
-      y: 235,
+    lastPage.drawText(getFullDocTypeName(input.documentType), {
+      x: 85,
+      y: 247,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(input.documentNumber, {
-      x: 190,
-      y: 205,
+      x: 85,
+      y: 210,
       size: 10,
       color: rgb(0, 0, 0),
     });
 
     lastPage.drawText(`Bogotá, ${dateStr}`, {
-      x: 140,
-      y: 175,
+      x: 85,
+      y: 180,
       size: 10,
       color: rgb(0, 0, 0),
     });
@@ -71,39 +121,39 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
     if (input.isMinor && input.tutorSignatureDataUrl && input.tutorName) {
       const tutorSignatureBytes = await fetch(input.tutorSignatureDataUrl).then(res => res.arrayBuffer());
       const tutorSignatureImage = await pdfDoc.embedPng(tutorSignatureBytes);
-      const tutorSigDims = tutorSignatureImage.scale(0.3);
+      const tutorSigDims = tutorSignatureImage.scale(0.2);
 
       lastPage.drawImage(tutorSignatureImage, {
-        x: 320,
-        y: 290,
+        x: 325,
+        y: 295,
         width: tutorSigDims.width,
         height: tutorSigDims.height,
       });
 
       lastPage.drawText(input.tutorName, {
-        x: 430,
-        y: 265,
+        x: 325,
+        y: 282,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
-      lastPage.drawText('CC', {
-        x: 460,
-        y: 235,
+      lastPage.drawText(getFullDocTypeName('CC'), {
+        x: 325,
+        y: 247,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(input.tutorDocument || '', {
-        x: 480,
-        y: 205,
+        x: 325,
+        y: 210,
         size: 10,
         color: rgb(0, 0, 0),
       });
 
       lastPage.drawText(`Bogotá, ${dateStr}`, {
-        x: 400,
-        y: 175,
+        x: 325,
+        y: 180,
         size: 10,
         color: rgb(0, 0, 0),
       });
@@ -121,7 +171,8 @@ export const generateHabeasDataPDF = async (input: HabeasDataInput): Promise<Fil
 
 export const generateFichaMatriculaDocx = async (studentData: any): Promise<File> => {
   try {
-    const url = '/Ficha Matricula.docx';
+    const baseUrl = import.meta.env.BASE_URL;
+    const url = `${baseUrl}Ficha Matricula.docx`;
     const content = await fetch(url).then(res => res.arrayBuffer());
 
     const zip = new PizZip(content);
@@ -136,11 +187,35 @@ export const generateFichaMatriculaDocx = async (studentData: any): Promise<File
     // Mapear campos para coincidir con la plantilla DOCX
     const renderData = {
       ...studentData,
+      categoria: studentData.categoria || '',
+      fecha_ingreso: studentData.fecha_ingreso || today.toLocaleDateString('es-CO'),
+      tipo_documento: getFullDocTypeName(studentData.tipo_documento || ''),
+      numero_documento: studentData.numero_documento || '',
+      nombres: studentData.nombres || '',
+      apellidos: studentData.apellidos || '',
+      genero: studentData.genero || '',
+      estado_civil: studentData.estado_civil || '',
+      fecha_nacimiento: studentData.fecha_nacimiento || '',
+      lugar_origen: studentData.lugar_origen || '',
+      estrato: studentData.estrato || '',
+      eps: studentData.eps || '',
+      nivel_formacion: studentData.nivel_formacion || '',
+      ocupacion: studentData.ocupacion || '',
+      email_1: studentData.email_1 || '',
+      email_2: studentData.email_2 || '',
+      celular: studentData.celular || '',
+      telefono_fijo: studentData.telefono_fijo || '',
+      direccion: studentData.direccion || '',
+      contacto_emergencia: studentData.contacto_emergencia || '',
+      celular_emergencia: studentData.celular_emergencia || '',
+      
+      // Variables extras por si acaso
       nombres_completos: `${studentData.nombres || ''} ${studentData.apellidos || ''}`.trim(),
       fecha_hoy: today.toLocaleDateString('es-CO'),
       ano: today.getFullYear().toString(),
       mes: (today.getMonth() + 1).toString().padStart(2, '0'),
       dia: today.getDate().toString().padStart(2, '0'),
+      
       // Soporte para acudiente si aplica
       acudiente_nombre: studentData.acudiente_nombre || 'N/A',
       acudiente_documento: studentData.acudiente_documento || 'N/A',
@@ -149,16 +224,73 @@ export const generateFichaMatriculaDocx = async (studentData: any): Promise<File
 
     doc.render(renderData);
 
+    // DEFLATE reduce la ficha de ~3.2 MB a ~1.6 MB (sin compresión pesaba el doble)
     const modifiedBlob = doc.getZip().generate({
       type: 'blob',
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 9 },
     });
 
-    return new File([modifiedBlob], `FichaMatricula_${cleanStudentName}.docx`, { 
+    return new File([modifiedBlob], fichaMatriculaFileName(studentData.nombres, studentData.apellidos), {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
     });
   } catch (error) {
     console.error('Error generating Ficha Matricula DOCX:', error);
+    throw error;
+  }
+};
+
+export const convertImagesToPdf = async (frontDataUrl: string, backDataUrl: string, studentName: string): Promise<File> => {
+  try {
+    const pdfDoc = await PDFDocument.create();
+    
+    // Una sola hoja A4
+    const page = pdfDoc.addPage([595.28, 841.89]); 
+    const pageW = page.getWidth();
+    const pageH = page.getHeight();
+
+    // Imagen frontal (Mitad superior)
+    // Se re-codifica a JPEG liviano (~200 dpi al tamaño impreso, suficiente para leer la cédula)
+    const embedLight = async (dataUrl: string) => {
+      try {
+        return await pdfDoc.embedJpg(await shrinkToJpegBytes(dataUrl));
+      } catch (e) {
+        console.warn('No se pudo comprimir la imagen, se usa la original', e);
+        const bytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+        return dataUrl.startsWith('data:image/png') ? pdfDoc.embedPng(bytes) : pdfDoc.embedJpg(bytes);
+      }
+    };
+    const frontImage = await embedLight(frontDataUrl);
+      
+    // Ajuste de tamaño exacto solicitado: 80-85% del ancho de la hoja (usamos 82.5%)
+    const maxW = pageW * 0.825;
+    const maxH = pageH * 0.45;
+    
+    const frontDims = frontImage.scaleToFit(maxW, maxH);
+    page.drawImage(frontImage, {
+      x: pageW / 2 - frontDims.width / 2,
+      y: (pageH * 0.72) - (frontDims.height / 2),
+      width: frontDims.width,
+      height: frontDims.height,
+    });
+
+    // Imagen reverso (Mitad inferior)
+    const backImage = await embedLight(backDataUrl);
+      
+    const backDims = backImage.scaleToFit(maxW, maxH);
+    page.drawImage(backImage, {
+      x: pageW / 2 - backDims.width / 2,
+      y: (pageH * 0.28) - (backDims.height / 2),
+      width: backDims.width,
+      height: backDims.height,
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    const cleanStudentName = studentName.trim().replace(/[^a-zA-Z0-9]/g, '_');
+    return new File([pdfBytes as any], `Cedula_${cleanStudentName}.pdf`, { type: 'application/pdf' });
+  } catch (error) {
+    console.error('Error converting images to PDF:', error);
     throw error;
   }
 };
